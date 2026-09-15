@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Covariance Ellipse</title>
+<style>
+  :root{
+    color-scheme: light dark;
+    --bg:#f7f7f5; --panel:#ffffff; --ink:#1a1a1a; --muted:#6b6b6b;
+    --line:#d9d9d5; --grid:#e8e8e4; --axis:#a8a8a2;
+    --joint:#2563eb; --jointFill:rgba(37,99,235,.42);
+    --cond:#d97706; --condFill:rgba(217,119,6,.20);
+    --eig1:#db2777; --eig2:#0891b2;
+    --ghost:#9a9a95;
+    --accentSoft:rgba(37,99,235,.10);
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#14151a; --panel:#1c1e25; --ink:#eceef2; --muted:#9aa0ab;
+      --line:#2f323b; --grid:#252831; --axis:#565b68;
+      --joint:#60a5fa; --jointFill:rgba(96,165,250,.40);
+      --cond:#fbbf24; --condFill:rgba(251,191,36,.20);
+      --eig1:#f472b6; --eig2:#22d3ee;
+      --ghost:#6b7280;
+      --accentSoft:rgba(96,165,250,.12);
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    padding: env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px);
+  }
+  .wrap{max-width:1180px; margin:0 auto; padding:28px 18px 64px}
+  header{margin-bottom:22px}
+  h1{font-size:26px; line-height:1.2; margin:0 0 6px; letter-spacing:-.02em}
+  .sub{color:var(--muted); margin:0; max-width:68ch}
+  .sub code{font-size:.92em; background:var(--accentSoft); padding:1px 5px; border-radius:4px}
+  .layout{display:grid; grid-template-columns:minmax(0,1.55fr) minmax(0,1fr); gap:18px; align-items:start}
+  @media (max-width:880px){ .layout{grid-template-columns:1fr} }
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px}
+  .card h2{font-size:12px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); margin:0 0 10px; font-weight:600}
+  canvas{display:block; width:100%; border-radius:8px; touch-action:none}
+  #joint{cursor:ns-resize}
+  .plotnote{color:var(--muted); font-size:12.5px; margin:8px 2px 0}
+
+  .ctl{display:flex; align-items:center; gap:10px; margin:0 0 9px}
+  .ctl label{width:74px; flex:none; font-variant-numeric:tabular-nums}
+  .ctl input[type=range]{flex:1; min-width:0; accent-color:var(--joint)}
+  .ctl .val{width:56px; flex:none; text-align:right; font-variant-numeric:tabular-nums; color:var(--muted); font-size:13.5px}
+  .ctl.cond input[type=range]{accent-color:var(--cond)}
+
+  .presets{display:flex; gap:7px; flex-wrap:wrap; margin:14px 0 4px}
+  button{
+    font:inherit; font-size:13px; padding:5px 11px; border-radius:7px; cursor:pointer;
+    background:transparent; color:var(--ink); border:1px solid var(--line);
+  }
+  button:hover{background:var(--accentSoft); border-color:var(--joint)}
+  button.on{background:var(--accentSoft); border-color:var(--joint); color:var(--joint)}
+
+  .toggles{display:flex; gap:7px; flex-wrap:wrap; margin-top:9px}
+
+  .mat{display:flex; align-items:stretch; gap:8px; margin:2px 0 4px}
+  .brk{width:8px; border:1.6px solid var(--ink); border-right:none; border-radius:2px 0 0 2px}
+  .brk.r{border:1.6px solid var(--ink); border-left:none; border-radius:0 2px 2px 0}
+  .cells{display:grid; grid-template-columns:1fr 1fr; gap:4px 16px; padding:6px 4px; font-variant-numeric:tabular-nums}
+  .cells span{text-align:right; font-size:15px}
+  .lbl{color:var(--muted); font-size:12px; margin:10px 0 3px; letter-spacing:.02em}
+
+  dl{display:grid; grid-template-columns:auto 1fr; gap:5px 12px; margin:0; font-variant-numeric:tabular-nums}
+  dt{color:var(--muted); font-size:13px}
+  dd{margin:0; text-align:right; font-size:13.5px}
+  .sep{grid-column:1/-1; height:1px; background:var(--line); margin:5px 0}
+
+  .warn{margin-top:10px; font-size:12.5px; color:var(--cond); min-height:1.2em}
+
+  .key{display:flex; gap:14px; flex-wrap:wrap; font-size:12.5px; color:var(--muted); margin-top:10px}
+  .key i{display:inline-block; width:11px; height:11px; border-radius:2px; margin-right:5px; vertical-align:-1px}
+
+  .try{margin-top:20px}
+  .try ol{margin:0; padding-left:20px}
+  .try li{margin:7px 0; max-width:74ch}
+  .try b{font-weight:600}
+  footer{margin-top:28px; color:var(--muted); font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>The Covariance Ellipse</h1>
+  <p class="sub">A bivariate Gaussian with mean <code>&mu; = 0</code>. Everything on this page is driven by the three numbers
+  <code>&sigma;&#8321;</code>, <code>&sigma;&#8322;</code>, <code>&rho;</code> &mdash; drag them and watch the cloud, its eigenvectors, and the conditional slice move together.
+  Murphy, <i>Probabilistic Machine Learning</i>, &sect;3.2.</p>
+</header>
+
+<div class="layout">
+
+  <div>
+    <div class="card">
+      <h2>Joint distribution &nbsp;p(y&#8321;, y&#8322;)</h2>
+      <canvas id="joint"></canvas>
+      <p class="plotnote">Drag anywhere in the plot to move the conditioning line <b>y&#8322; = c</b>. Points inside the band are the ones you are conditioning on.</p>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>Conditional &nbsp;p(y&#8321; | y&#8322; = c) &nbsp;vs&nbsp; marginal &nbsp;p(y&#8321;)</h2>
+      <canvas id="cond"></canvas>
+      <div class="key">
+        <span><i style="background:var(--cond)"></i>conditional</span>
+        <span><i style="background:var(--ghost)"></i>marginal</span>
+        <span>same x-axis as the plot above</span>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h2>Controls</h2>
+      <div class="ctl"><label>&sigma;&#8321;</label><input type="range" id="s1" min="0.25" max="2.6" step="0.01" value="1.6"><span class="val" id="s1v"></span></div>
+      <div class="ctl"><label>&sigma;&#8322;</label><input type="range" id="s2" min="0.25" max="2.6" step="0.01" value="0.9"><span class="val" id="s2v"></span></div>
+      <div class="ctl"><label>&rho;</label><input type="range" id="rho" min="-0.99" max="0.99" step="0.01" value="0.75"><span class="val" id="rhov"></span></div>
+      <div class="ctl cond"><label>y&#8322; = c</label><input type="range" id="y2" min="-5" max="5" step="0.05" value="1"><span class="val" id="y2v"></span></div>
+
+      <div class="presets">
+        <button data-p="full">full</button>
+        <button data-p="diag">diagonal</button>
+        <button data-p="sph">spherical</button>
+        <button data-p="near1">&rho; &rarr; 1</button>
+      </div>
+      <div class="toggles">
+        <button id="tPts" class="on">points</button>
+        <button id="tCont" class="on">contours</button>
+        <button id="tEig" class="on">eigenvectors</button>
+      </div>
+      <div class="warn" id="warn"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>Covariance matrix &Sigma;</h2>
+      <div class="mat">
+        <div class="brk"></div>
+        <div class="cells">
+          <span id="m11"></span><span id="m12"></span>
+          <span id="m21"></span><span id="m22"></span>
+        </div>
+        <div class="brk r"></div>
+      </div>
+
+      <div class="lbl">Eigendecomposition &mdash; shape of the ellipse</div>
+      <dl>
+        <dt>&lambda;&#8321; (major)</dt><dd id="l1"></dd>
+        <dt>&lambda;&#8322; (minor)</dt><dd id="l2"></dd>
+        <dt>axis tilt</dt><dd id="ang"></dd>
+        <dt>elongation &radic;(&lambda;&#8321;/&lambda;&#8322;)</dt><dd id="elong"></dd>
+        <dt>|&Sigma;|</dt><dd id="det"></dd>
+      </dl>
+
+      <div class="lbl">Conditioning on y&#8322; = <span id="cshow"></span></div>
+      <dl>
+        <dt>E[y&#8321;]</dt><dd id="pm"></dd>
+        <dt>E[y&#8321; | y&#8322;]</dt><dd id="cm"></dd>
+        <div class="sep"></div>
+        <dt>V[y&#8321;]</dt><dd id="pv"></dd>
+        <dt>V[y&#8321; | y&#8322;] = &sigma;&#8321;&sup2;(1&minus;&rho;&sup2;)</dt><dd id="cv"></dd>
+        <dt>variance explained &rho;&sup2;</dt><dd id="r2"></dd>
+      </dl>
+    </div>
+  </div>
+</div>
+
+<div class="card try">
+  <h2>What to try</h2>
+  <ol>
+    <li><b>Drag the conditioning line up and down.</b> The orange curve slides, but its <i>width never changes</i>. That is
+    &Sigma;<sub>1|2</sub> = &Sigma;<sub>11</sub> &minus; &Sigma;<sub>12</sub>&Sigma;<sub>22</sub><sup>&minus;1</sup>&Sigma;<sub>21</sub>
+    not depending on the observed value &mdash; you know how much you will learn before you look.</li>
+    <li><b>Set &rho; = 0.</b> The conditional lands exactly on top of the marginal. Observing y&#8322; tells you nothing.
+    For <i>jointly Gaussian</i> variables, uncorrelated really does mean independent.</li>
+    <li><b>Push &rho; toward 1.</b> The ellipse collapses onto a line, &lambda;&#8322; &rarr; 0, |&Sigma;| &rarr; 0, and the conditional spikes.
+    That is why the 1/&radic;(1&minus;&rho;&sup2;) in the pdf blows up: &Sigma; is going singular.</li>
+    <li><b>Compare the presets.</b> <i>Full</i> tilts at any angle (3 free parameters), <i>diagonal</i> is stuck axis-aligned (2),
+    <i>spherical</i> must be a circle (1). That is Figure 3.5, and it is the flexibility-vs-parameters tradeoff in every Gaussian model.</li>
+    <li><b>Watch the eigenvectors, not the axes.</b> The pink arrow is the direction of greatest variance, length &radic;&lambda;&#8321;.
+    Finding that arrow is all PCA does.</li>
+  </ol>
+</div>
+
+<footer>CS 473 &mdash; interactive notes. Contours are Mahalanobis distance &Delta; = 1, 2, 3.</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var S = { s1:1.6, s2:0.9, rho:0.75, c:1.0, pts:true, cont:true, eig:true };
+  var R = 6;                 // world half-range
+  var N = 1600;              // sample count
+  var Z = [];                // FIXED standard-normal draws, so the cloud morphs instead of resampling
+  var SQ2PI = Math.sqrt(2*Math.PI);
+
+  (function seedSamples(){
+    var i, u1, u2, r, t;
+    for(i=0;i<N;i++){
+      u1 = Math.random(); if(u1 < 1e-12) u1 = 1e-12;
+      u2 = Math.random();
+      r = Math.sqrt(-2*Math.log(u1)); t = 2*Math.PI*u2;
+      Z.push([r*Math.cos(t), r*Math.sin(t)]);
+    }
+  })();
+
+  var jc = document.getElementById('joint'), jx = jc.getContext('2d');
+  var cc = document.getElementById('cond'),  cx = cc.getContext('2d');
+
+  function css(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+  function fit(cv, hRatio, maxH){
+    var dpr = window.devicePixelRatio || 1;
+    var w = cv.clientWidth || 600;
+    var h = Math.min(maxH, Math.round(w*hRatio));
+    cv.style.height = h + 'px';
+    cv.width  = Math.round(w*dpr);
+    cv.height = Math.round(h*dpr);
+    cv.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+    return {w:w, h:h};
+  }
+
+  // --- linear algebra for the 2x2 symmetric case -------------------------
+  function sigma(){
+    var a = S.s1*S.s1, b = S.rho*S.s1*S.s2, d = S.s2*S.s2;
+    return {a:a, b:b, d:d};
+  }
+  function chol(){  // L with L*L^T = Sigma
+    return { l11:S.s1, l21:S.rho*S.s2, l22:S.s2*Math.sqrt(Math.max(0,1-S.rho*S.rho)) };
+  }
+  function eig(){
+    var m = sigma(), half = (m.a+m.d)/2;
+    var disc = Math.sqrt(Math.pow((m.a-m.d)/2,2) + m.b*m.b);
+    var l1 = half+disc, l2 = half-disc, vx, vy, n;
+    if(Math.abs(m.b) > 1e-12){ vx = m.b; vy = l1-m.a; }
+    else if(m.a >= m.d){ vx = 1; vy = 0; }
+    else { vx = 0; vy = 1; }
+    n = Math.hypot(vx,vy) || 1;
+    return { l1:l1, l2:Math.max(l2,0), ux:vx/n, uy:vy/n };
+  }
+
+  // --- joint panel -------------------------------------------------------
+  function drawJoint(){
+    var g = fit(jc, 1, 520), w = g.w, h = g.h;
+    var pad = 30, plotW = w-pad*2, plotH = h-pad*2;
+    var X = function(v){ return pad + (v+R)/(2*R)*plotW; };
+    var Y = function(v){ return pad + (R-v)/(2*R)*plotH; };
+    var L = chol(), E = eig();
+
+    jx.clearRect(0,0,w,h);
+    jx.fillStyle = css('--panel'); jx.fillRect(0,0,w,h);
+
+    // grid + axes
+    jx.strokeStyle = css('--grid'); jx.lineWidth = 1;
+    for(var t=-R+1; t<R; t++){
+      jx.beginPath(); jx.moveTo(X(t),pad); jx.lineTo(X(t),h-pad); jx.stroke();
+      jx.beginPath(); jx.moveTo(pad,Y(t)); jx.lineTo(w-pad,Y(t)); jx.stroke();
+    }
+    jx.strokeStyle = css('--axis'); jx.lineWidth = 1.2;
+    jx.beginPath(); jx.moveTo(pad,Y(0)); jx.lineTo(w-pad,Y(0)); jx.stroke();
+    jx.beginPath(); jx.moveTo(X(0),pad); jx.lineTo(X(0),h-pad); jx.stroke();
+    jx.fillStyle = css('--muted'); jx.font = '12px ui-sans-serif,system-ui,sans-serif';
+    jx.fillText('y₁', w-pad+4, Y(0)+4);
+    jx.fillText('y₂', X(0)+5, pad-8);
+
+    // sample cloud; points inside the conditioning band get the conditional colour
+    if(S.pts){
+      var band = 0.16, i, z, px, py;
+      for(i=0;i<N;i++){
+        z = Z[i];
+        px = L.l11*z[0];
+        py = L.l21*z[0] + L.l22*z[1];
+        if(px<-R||px>R||py<-R||py>R) continue;
+        if(Math.abs(py-S.c) < band){
+          jx.fillStyle = css('--cond');
+          jx.fillRect(X(px)-1.9, Y(py)-1.9, 3.8, 3.8);
+        } else {
+          jx.fillStyle = css('--jointFill');
+          jx.fillRect(X(px)-1.2, Y(py)-1.2, 2.4, 2.4);
+        }
+      }
+    }
+
+    // Mahalanobis contours: y = L * r * (cos t, sin t)  =>  |z| = r
+    if(S.cont){
+      jx.strokeStyle = css('--joint');
+      for(var k=1;k<=3;k++){
+        jx.lineWidth = k===1 ? 2 : 1.1;
+        jx.globalAlpha = k===1 ? 0.95 : 0.45;
+        jx.beginPath();
+        for(var a=0;a<=Math.PI*2+0.01;a+=0.03){
+          var zx = k*Math.cos(a), zy = k*Math.sin(a);
+          var ex = L.l11*zx, ey = L.l21*zx + L.l22*zy;
+          if(a===0) jx.moveTo(X(ex),Y(ey)); else jx.lineTo(X(ex),Y(ey));
+        }
+        jx.closePath(); jx.stroke();
+      }
+      jx.globalAlpha = 1;
+    }
+
+    // eigenvectors, drawn one standard deviation long along each axis
+    if(S.eig){
+      arrow(jx, X, Y,  E.ux*Math.sqrt(E.l1),  E.uy*Math.sqrt(E.l1), css('--eig1'));
+      arrow(jx, X, Y, -E.uy*Math.sqrt(E.l2),  E.ux*Math.sqrt(E.l2), css('--eig2'));
+    }
+
+    // conditioning line
+    jx.strokeStyle = css('--cond'); jx.lineWidth = 1.8; jx.setLineDash([6,4]);
+    jx.beginPath(); jx.moveTo(pad,Y(S.c)); jx.lineTo(w-pad,Y(S.c)); jx.stroke();
+    jx.setLineDash([]);
+    jx.fillStyle = css('--cond'); jx.font = '600 12px ui-sans-serif,system-ui,sans-serif';
+    jx.fillText('y₂ = ' + S.c.toFixed(2), pad+5, Y(S.c)-6);
+
+    jc._X = X; jc._pad = pad; jc._plotH = plotH;
+  }
+
+  function arrow(ctx, X, Y, dx, dy, col){
+    var x0 = X(0), y0 = Y(0), x1 = X(dx), y1 = Y(dy);
+    var ang = Math.atan2(y1-y0, x1-x0), head = 8;
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    ctx.lineTo(x1-head*Math.cos(ang-0.4), y1-head*Math.sin(ang-0.4));
+    ctx.lineTo(x1-head*Math.cos(ang+0.4), y1-head*Math.sin(ang+0.4));
+    ctx.closePath(); ctx.fill();
+  }
+
+  // --- conditional panel -------------------------------------------------
+  function drawCond(){
+    var g = fit(cc, 0.30, 190), w = g.w, h = g.h;
+    var pad = 30, plotW = w-pad*2, base = h-22;
+    var X = function(v){ return pad + (v+R)/(2*R)*plotW; };
+
+    var vPrior = S.s1*S.s1;
+    var vCond  = vPrior*(1-S.rho*S.rho);
+    var mCond  = S.rho*(S.s1/S.s2)*S.c;
+    var sdC    = Math.sqrt(Math.max(vCond, 1e-9));
+
+    var peak = Math.max(1/(SQ2PI*S.s1), 1/(SQ2PI*sdC));
+    var scale = (base-14)/peak;
+
+    cx.clearRect(0,0,w,h);
+    cx.fillStyle = css('--panel'); cx.fillRect(0,0,w,h);
+
+    cx.strokeStyle = css('--grid'); cx.lineWidth = 1;
+    for(var t=-R+1;t<R;t++){ cx.beginPath(); cx.moveTo(X(t),8); cx.lineTo(X(t),base); cx.stroke(); }
+    cx.strokeStyle = css('--axis'); cx.lineWidth = 1.2;
+    cx.beginPath(); cx.moveTo(pad,base); cx.lineTo(w-pad,base); cx.stroke();
+    cx.fillStyle = css('--muted'); cx.font = '12px ui-sans-serif,system-ui,sans-serif';
+    cx.fillText('y₁', w-pad+4, base+4);
+
+    curve(cx, X, base, scale, 0, S.s1, css('--ghost'), null, true);
+    curve(cx, X, base, scale, mCond, sdC, css('--cond'), css('--condFill'), false);
+
+    cx.strokeStyle = css('--cond'); cx.lineWidth = 1.4; cx.setLineDash([3,3]);
+    cx.beginPath(); cx.moveTo(X(mCond), base); cx.lineTo(X(mCond), base - Math.min(base-14, scale/(SQ2PI*sdC))); cx.stroke();
+    cx.setLineDash([]);
+  }
+
+  function curve(ctx, X, base, scale, mu, sd, stroke, fill, dashed){
+    var step = (2*R)/420, v, y, first = true;
+    ctx.beginPath();
+    for(v=-R; v<=R; v+=step){
+      y = base - scale*Math.exp(-0.5*Math.pow((v-mu)/sd,2))/(SQ2PI*sd);
+      if(first){ ctx.moveTo(X(v),y); first = false; } else ctx.lineTo(X(v),y);
+    }
+    if(fill){
+      ctx.lineTo(X(R), base); ctx.lineTo(X(-R), base); ctx.closePath();
+      ctx.fillStyle = fill; ctx.fill();
+    }
+    ctx.strokeStyle = stroke; ctx.lineWidth = dashed ? 1.6 : 2.2;
+    if(dashed) ctx.setLineDash([5,4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // --- numeric readout ---------------------------------------------------
+  function f(x){ return (Math.abs(x) < 5e-3 ? 0 : x).toFixed(2); }
+
+  function readout(){
+    var m = sigma(), E = eig();
+    document.getElementById('m11').textContent = f(m.a);
+    document.getElementById('m12').textContent = f(m.b);
+    document.getElementById('m21').textContent = f(m.b);
+    document.getElementById('m22').textContent = f(m.d);
+
+    document.getElementById('l1').textContent = f(E.l1);
+    document.getElementById('l2').textContent = f(E.l2);
+    document.getElementById('ang').textContent = (Math.atan2(E.uy,E.ux)*180/Math.PI).toFixed(1) + '°';
+    document.getElementById('elong').textContent = E.l2 > 1e-6 ? Math.sqrt(E.l1/E.l2).toFixed(2) + '×' : '∞';
+    document.getElementById('det').textContent = f(m.a*m.d - m.b*m.b);
+
+    var vPrior = S.s1*S.s1, vCond = vPrior*(1-S.rho*S.rho);
+    document.getElementById('cshow').textContent = S.c.toFixed(2);
+    document.getElementById('pm').textContent = '0.00';
+    document.getElementById('cm').textContent = f(S.rho*(S.s1/S.s2)*S.c);
+    document.getElementById('pv').textContent = f(vPrior);
+    document.getElementById('cv').textContent = f(vCond);
+    document.getElementById('r2').textContent = (S.rho*S.rho*100).toFixed(0) + '%';
+
+    var warn = document.getElementById('warn');
+    if(Math.abs(S.rho) >= 0.95){
+      warn.textContent = 'Σ is nearly singular — the cloud is collapsing onto a line.';
+    } else if(Math.abs(S.rho) < 0.005){
+      warn.textContent = 'ρ = 0: the conditional sits exactly on the marginal.';
+    } else { warn.textContent = ''; }
+
+    document.getElementById('s1v').textContent  = S.s1.toFixed(2);
+    document.getElementById('s2v').textContent  = S.s2.toFixed(2);
+    document.getElementById('rhov').textContent = S.rho.toFixed(2);
+    document.getElementById('y2v').textContent  = S.c.toFixed(2);
+  }
+
+  function render(){ drawJoint(); drawCond(); readout(); }
+
+  // --- wiring ------------------------------------------------------------
+  function bind(id, key){
+    var el = document.getElementById(id);
+    el.addEventListener('input', function(){ S[key] = parseFloat(el.value); render(); });
+  }
+  bind('s1','s1'); bind('s2','s2'); bind('rho','rho'); bind('y2','c');
+
+  function setAll(s1,s2,rho){
+    S.s1 = s1; S.s2 = s2; S.rho = rho;
+    document.getElementById('s1').value = s1;
+    document.getElementById('s2').value = s2;
+    document.getElementById('rho').value = rho;
+    render();
+  }
+  var PRESETS = { full:[1.6,0.9,0.75], diag:[1.8,0.8,0], sph:[1.2,1.2,0], near1:[1.4,1.4,0.97] };
+  Array.prototype.forEach.call(document.querySelectorAll('.presets button'), function(b){
+    b.addEventListener('click', function(){
+      var p = PRESETS[b.getAttribute('data-p')];
+      setAll(p[0],p[1],p[2]);
+    });
+  });
+
+  function toggle(id, key){
+    var b = document.getElementById(id);
+    b.addEventListener('click', function(){ S[key] = !S[key]; b.classList.toggle('on', S[key]); render(); });
+  }
+  toggle('tPts','pts'); toggle('tCont','cont'); toggle('tEig','eig');
+
+  // drag the conditioning line
+  var dragging = false;
+  function grab(ev){
+    var r = jc.getBoundingClientRect();
+    var yPix = ev.clientY - r.top;
+    var v = R - (yPix - jc._pad)/jc._plotH*(2*R);
+    S.c = Math.max(-5, Math.min(5, Math.round(v*20)/20));
+    document.getElementById('y2').value = S.c;
+    render();
+  }
+  jc.addEventListener('pointerdown', function(ev){ dragging = true; jc.setPointerCapture(ev.pointerId); grab(ev); });
+  jc.addEventListener('pointermove', function(ev){ if(dragging) grab(ev); });
+  jc.addEventListener('pointerup',   function(){ dragging = false; });
+  jc.addEventListener('pointercancel', function(){ dragging = false; });
+
+  window.addEventListener('resize', render);
+  if(window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', render);
+  render();
+})();
+</script>
+</body>
+</html>
