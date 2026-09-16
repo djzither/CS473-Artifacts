@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Who Made This Point?</title>
+<meta name="description" content="An interactive Gaussian mixture model: drag the clouds, watch responsibilities change, and slide the model from GMM to K-means.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ==================================================== masthead ==== -->
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 2 &middot; Murphy &sect;3.5</p>
+    <h1>Who Made This Point?</h1>
+    <p class="lede">
+      Every point below came from <strong>one</strong> hidden probability cloud. You never get to see
+      which one. So instead of guessing, the model works out how <strong>responsible</strong> each
+      cloud is for explaining that point &mdash; and that number is the whole idea.
+    </p>
+  </header>
+
+  <!-- ====================================================== bench ===== -->
+  <section class="bench">
+
+    <div class="card plot-card">
+      <div class="plot-head">
+        <div class="legend">
+          <span class="legend-item"><i class="swatch c1"></i> Component&nbsp;1</span>
+          <span class="legend-item"><i class="swatch c2"></i> Component&nbsp;2</span>
+          <span class="legend-item"><i class="swatch mid"></i> Could be either</span>
+          <span class="legend-item"><i class="swatch ring"></i> Ringed = model is unsure</span>
+        </div>
+        <label class="legend-item" style="font-size:13px; gap:7px">
+          Background
+          <select id="heatMode" aria-label="Background layer">
+            <option value="resp" selected>Responsibility field</option>
+            <option value="dens">Mixture density</option>
+            <option value="off">None</option>
+          </select>
+        </label>
+      </div>
+
+      <canvas id="plot" tabindex="0" role="img"
+              aria-label="Scatterplot of points from two Gaussian components, coloured by responsibility."></canvas>
+
+      <p class="hint">
+        <b>Drag either &#9673; centre.</b> Click any point to inspect it.
+        Keyboard: focus the plot, press <kbd>1</kbd> or <kbd>2</kbd> to pick a component,
+        then <kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&rarr;</kbd> to move it.
+      </p>
+    </div>
+
+    <aside class="rail">
+
+      <!-- The generative story. Numbered because it really is a sequence. -->
+      <div class="card story">
+        <h2>The generative story</h2>
+        <ol>
+          <li id="st1"><span>First <b>secretly choose a component</b> &mdash; component 1 with
+            probability <span class="mono" id="stPi1">0.50</span>, component 2 otherwise.</span></li>
+          <li id="st2"><span>Then <b>generate a point</b> from that component's bell curve.</span></li>
+          <li id="st3"><span>We <b>observe the point, but not its component</b>. The colour it
+            had is thrown away.</span></li>
+          <li id="st4"><span>So we compute <b>responsibility</b>: the probability that this
+            component generated the point.</span></li>
+        </ol>
+        <div class="row">
+          <button id="draw1" class="primary" type="button">Watch one point get made</button>
+        </div>
+      </div>
+
+      <div class="card inspector">
+        <h2>Selected point</h2>
+        <div id="inspEmpty">
+          <p class="empty">Click a point in the plot &mdash; or use the button above &mdash; to take it apart.</p>
+        </div>
+        <div id="inspBody" hidden>
+          <p class="coord" id="pCoord">y = (0.00, 0.00)</p>
+
+          <div class="rbar" aria-hidden="true">
+            <i class="b1" id="bar1" style="width:50%"></i>
+            <i class="b2" id="bar2" style="width:50%"></i>
+          </div>
+
+          <div class="readout" style="margin-top:12px">
+            <span class="rh">quantity</span>
+            <span class="rh v">comp 1</span>
+            <span class="rh v">comp 2</span>
+
+            <span class="rl">Density <span class="mono">p(y&nbsp;|&nbsp;z=k)</span></span>
+            <span class="v c1" id="pd1">0.000</span>
+            <span class="v c2" id="pd2">0.000</span>
+
+            <span class="rl">Responsibility <span class="mono">r<sub>k</sub></span></span>
+            <span class="v c1" id="pr1">0.00</span>
+            <span class="v c2" id="pr2">0.00</span>
+
+            <span class="rl">Distance to centre</span>
+            <span class="v c1" id="pe1">0.00</span>
+            <span class="v c2" id="pe2">0.00</span>
+
+            <span class="rl">&hellip;in ellipse units</span>
+            <span class="v c1" id="pm1">0.00&sigma;</span>
+            <span class="v c2" id="pm2">0.00&sigma;</span>
+          </div>
+
+          <p class="verdict" id="verdict" style="margin-top:12px"></p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Two things to remember</h2>
+        <p class="verdict tie" style="margin-bottom:10px">
+          <b>Responsibility</b> means the probability that this component generated the point &mdash;
+          not how close it is, and not a hard label.
+        </p>
+        <p class="verdict tie">
+          <b>Where the distributions overlap, the model is less certain.</b> Those are the washed-out,
+          ringed points &mdash; and they are the honest answer, not a failure.
+        </p>
+      </div>
+
+    </aside>
+  </section>
+
+  <!-- ================================================ control deck ==== -->
+  <section class="deck">
+
+    <div class="card comp-card c1">
+      <h3>Component 1</h3>
+      <div class="ctl">
+        <label for="sx1">Width
+          <button class="q" type="button" data-tip="How far the cloud spreads along its own first axis, before rotation. This is a standard deviation, in plot units.">?</button>
+        </label>
+        <input type="range" id="sx1" min="0.25" max="2.6" step="0.01" value="1.35">
+        <output for="sx1" id="sx1v">1.35</output>
+      </div>
+      <div class="ctl">
+        <label for="sy1">Height</label>
+        <input type="range" id="sy1" min="0.25" max="2.6" step="0.01" value="0.65">
+        <output for="sy1" id="sy1v">0.65</output>
+      </div>
+      <div class="ctl">
+        <label for="rot1">Tilt
+          <button class="q" type="button" data-tip="Rotating the cloud is what creates covariance — the off-diagonal entry of &Sigma;. At 0&deg; or 90&deg; the two coordinates are uncorrelated.">?</button>
+        </label>
+        <input type="range" id="rot1" min="-90" max="90" step="1" value="25">
+        <output for="rot1" id="rot1v">25&deg;</output>
+      </div>
+      <p class="hint" style="margin-top:11px">&Sigma;&#8321; = <span class="mono" id="sig1">[…]</span></p>
+    </div>
+
+    <div class="card comp-card c2">
+      <h3>Component 2</h3>
+      <div class="ctl">
+        <label for="sx2">Width</label>
+        <input type="range" id="sx2" min="0.25" max="2.6" step="0.01" value="0.9">
+        <output for="sx2" id="sx2v">0.90</output>
+      </div>
+      <div class="ctl">
+        <label for="sy2">Height</label>
+        <input type="range" id="sy2" min="0.25" max="2.6" step="0.01" value="1.2">
+        <output for="sy2" id="sy2v">1.20</output>
+      </div>
+      <div class="ctl">
+        <label for="rot2">Tilt</label>
+        <input type="range" id="rot2" min="-90" max="90" step="1" value="-15">
+        <output for="rot2" id="rot2v">-15&deg;</output>
+      </div>
+      <p class="hint" style="margin-top:11px">&Sigma;&#8322; = <span class="mono" id="sig2">[…]</span></p>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--ink); font-size:14px; letter-spacing:0; text-transform:none; font-family:inherit; font-weight:600">Shared</h3>
+      <div class="ctl">
+        <label for="pi1">Weight &pi;&#8321;
+          <button class="q" type="button" data-tip="The mixture weight: how often the hidden coin picks component 1. It is a prior — it shifts responsibilities even before we look at where the point landed. &pi;&#8322; is always 1 &minus; &pi;&#8321;.">?</button>
+        </label>
+        <input type="range" id="pi1" min="0.05" max="0.95" step="0.01" value="0.5">
+        <output for="pi1" id="pi1v">0.50</output>
+      </div>
+      <div class="ctl">
+        <label for="npts">Points</label>
+        <input type="range" id="npts" min="40" max="600" step="10" value="260">
+        <output for="npts" id="nptsv">260</output>
+      </div>
+      <p class="hint" style="margin-top:2px">&pi;&#8322; = <span class="mono" id="pi2v">0.50</span>. The two always sum to&nbsp;1.</p>
+      <div class="row">
+        <button id="gen" type="button">Generate new data</button>
+        <button id="reset" type="button">Reset everything</button>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- =================================================== k-means ====== -->
+  <section class="card">
+    <div class="km-head">
+      <h2 style="margin:0">GMM &rarr; K-means</h2>
+      <span class="mono" style="font-size:12.5px; color:var(--muted)" id="kmLabel">Full GMM</span>
+    </div>
+    <input type="range" id="kmeans" min="0" max="1" step="0.01" value="0" style="margin-top:10px"
+           aria-label="Blend from full Gaussian mixture model to K-means">
+    <div class="km-scale"><span>Full GMM</span><span>K-means</span></div>
+
+    <dl class="km-grid">
+      <div class="km-fact">
+        <dt>Mixture weights</dt>
+        <dd><span class="num" id="kmPi">0.50 / 0.50</span> &mdash; <span id="kmPiNote">as you set them</span></dd>
+      </div>
+      <div class="km-fact">
+        <dt>Covariance shape</dt>
+        <dd><span id="kmShape">tilted, unequal &mdash; each cloud keeps its own &Sigma;</span></dd>
+      </div>
+      <div class="km-fact">
+        <dt>Decision boundary</dt>
+        <dd><span id="kmBoundary">curved &mdash; bends around the narrower cloud</span></dd>
+      </div>
+      <div class="km-fact">
+        <dt>Points that change cluster</dt>
+        <dd><span class="num" id="kmFlips">0</span> <span style="color:var(--muted)">vs. the full GMM</span></dd>
+      </div>
+    </dl>
+
+    <p class="caution" style="margin-top:14px">
+      <b>The data never changes as you slide.</b> Only the model's assumptions do. Push the slider right and
+      the weights flatten to 50/50, both covariance matrices collapse to the same small circle, and the only
+      thing left to decide on is raw distance to a centre &mdash; which is exactly
+      <span class="mono">argmin<sub>k</sub> &#8214;y &minus; &mu;<sub>k</sub>&#8214;&sup2;</span>, the K-means rule.
+      Watch how far the boundary has to move to get there.
+    </p>
+  </section>
+
+  <!-- ======================================================= 1D ======= -->
+  <section class="card">
+    <h2>Adding curves, not numbers</h2>
+    <div class="oned-grid">
+      <div>
+        <canvas id="oned" role="img"
+                aria-label="Two weighted Gaussian curves and their sum, the mixture density."></canvas>
+        <p class="hint">Hover or drag across the curve to split <span class="mono">p(y)</span> into its two contributions.</p>
+      </div>
+      <div class="oned-side">
+        <div class="ctl" style="grid-template-columns:52px minmax(0,1fr) 46px">
+          <label for="mu1d1" style="color:var(--blue)">&mu;&#8321;</label>
+          <input type="range" id="mu1d1" min="-5" max="5" step="0.05" value="-1.6">
+          <output for="mu1d1" id="mu1d1v">-1.60</output>
+        </div>
+        <div class="ctl c2" style="grid-template-columns:52px minmax(0,1fr) 46px; margin:0">
+          <label for="mu1d2" style="color:var(--red)">&mu;&#8322;</label>
+          <input type="range" id="mu1d2" min="-5" max="5" step="0.05" value="1.4">
+          <output for="mu1d2" id="mu1d2v">1.40</output>
+        </div>
+
+        <div class="sum-line" id="sumLine">
+          Hover the curve to see the sum.
+        </div>
+
+        <p class="caution">
+          <b>This is addition of densities, not of samples.</b> At every <span class="mono">y</span> we add the
+          two shaded heights to get the black curve. We are <em>not</em> adding two draws together &mdash; that
+          would give one single bump, not two. Each sample comes from exactly one component.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================================================== foot ========= -->
+  <section class="foot">
+
+    <div class="card">
+      <h2>The two formulas</h2>
+
+      <div class="formula">
+        <div class="expr">p(y) = &Sigma;<sub>k</sub> &pi;<sub>k</sub> &middot; p(y | z = k)</div>
+        <p class="plain">How likely is this point overall? Take each cloud, ask how often it gets
+        picked (<span class="mono">&pi;<sub>k</sub></span>) times how likely <em>it</em> is to make
+        this point, and add those up.</p>
+      </div>
+
+      <div class="formula">
+        <div class="expr">r<sub>k</sub> = <span class="k1">&pi;<sub>k</sub> p(y | z = k)</span> &divide; <span>&Sigma;<sub>j</sub> &pi;<sub>j</sub> p(y | z = j)</span></div>
+        <p class="plain">Out of all the ways this point could have happened, what share came from
+        cloud <span class="mono">k</span>? Top line: this cloud's way. Bottom line: every cloud's way.
+        So the responsibilities always add to&nbsp;1.</p>
+      </div>
+
+      <p class="hint" style="margin-top:14px">
+        <span class="mono">z</span> is the <b>latent variable</b>
+        <button class="q" type="button" data-tip="Latent means present in the model but never observed. Here z is which component made the point. Every other quantity on this page exists to reason about it.">?</button>
+        &mdash; the component label that exists but is never seen.
+        <span class="mono">&mu;</span> is the <b>mean</b>
+        <button class="q" type="button" data-tip="The centre of a cloud — the big ringed dot you can drag.">?</button>,
+        <span class="mono">&Sigma;</span> the <b>covariance</b>
+        <button class="q" type="button" data-tip="A 2&times;2 matrix holding the cloud's spread and tilt. Its ellipse is the set of points at equal Mahalanobis distance from the centre.">?</button>.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Guided walkthrough</h2>
+      <div class="steps">
+        <button type="button" data-step="0"><span class="n">step 1</span>Pull them apart</button>
+        <button type="button" data-step="1"><span class="n">step 2</span>Make them overlap</button>
+        <button type="button" data-step="2"><span class="n">step 3</span>Tilt the weights</button>
+        <button type="button" data-step="3"><span class="n">step 4</span>Collapse to K-means</button>
+      </div>
+      <p class="step-note" id="stepNote">
+        Four moves, in order. Each one sets the controls for you &mdash; then keep fiddling.
+      </p>
+    </div>
+
+  </section>
+
+  <p class="colophon">
+    Built for CS&nbsp;473 from Kevin&nbsp;P. Murphy, <em>Probabilistic Machine Learning: An
+    Introduction</em>, &sect;3.5 &mdash; mixture models, responsibilities, and the K-means limit
+    (Eq.&nbsp;3.94&ndash;3.101). No build step, no dependencies.
+  </p>
+
+</div>
+
+<div id="tip" role="tooltip" hidden></div>
+<p class="sr-only" id="live" role="status" aria-live="polite"></p>
+
+<script src="script.js"></script>
+</body>
+</html>

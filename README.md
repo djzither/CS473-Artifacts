@@ -9,6 +9,7 @@ the deployed site on GitHub Pages.
 | | Module | Covers |
 |---|---|---|
 | ✅ | [`index.html`](index.html) — **The Covariance Ellipse** | Murphy §3.2: covariance matrix, Mahalanobis contours, eigendecomposition, conditioning a 2D Gaussian |
+| ✅ | [`gmm/`](gmm/) — **Who Made This Point?** | Murphy §3.5: mixture models, the latent variable z, responsibilities, the GMM → K-means limit |
 | ☐ | Uncorrelated ≠ independent | ρ ≈ 0 for a Gaussian blob vs. Y = X², side by side |
 | ☐ | Simpson's paradox | Iris sepal data with a "merge species" toggle |
 | ☐ | Mahalanobis vs. Euclidean | drop a test point, compare both distances |
