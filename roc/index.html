@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Where Do You Draw the Line?</title>
+<meta name="description" content="An interactive ROC curve: drag the decision threshold, watch the confusion matrix and the operating point move together, and see why cost and class imbalance change the answer.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ==================================================== masthead ==== -->
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 3 &middot; Murphy &sect;5.1.2&ndash;5.1.3</p>
+    <h1>Where Do You Draw the Line?</h1>
+    <p class="lede">
+      A classifier doesn&rsquo;t hand you an answer. It hands you a <strong>score</strong>, and somebody
+      still has to decide how high is high enough. Move that line and you trade one kind of mistake
+      for the other &mdash; you can&rsquo;t have fewer of both. <strong>The ROC curve is the picture of
+      every line you could have drawn</strong>, and the point riding on it is the one you actually did.
+    </p>
+  </header>
+
+  <!-- ====================================================== bench ===== -->
+  <section class="bench">
+
+    <div class="card plot-card">
+      <div class="plot-head">
+        <div class="legend">
+          <span class="legend-item"><i class="swatch neg"></i> Actually negative</span>
+          <span class="legend-item"><i class="swatch pos"></i> Actually positive</span>
+          <span class="legend-item"><i class="swatch err"></i> Hatched = a mistake</span>
+        </div>
+        <label class="check">
+          <input type="checkbox" id="showPts" checked>
+          Show the samples
+        </label>
+      </div>
+
+      <canvas id="dist" tabindex="0" role="img"
+              aria-label="Score distributions for the negative and positive classes, split by a draggable decision threshold into true negatives, false positives, false negatives and true positives."></canvas>
+
+      <div class="thr-strip">
+        <div class="thr-row">
+          <label for="thr">Threshold
+            <button class="q" type="button" data-tip="Everything at or above this score gets called positive. Everything below gets called negative. That single number is the entire decision rule.">?</button>
+          </label>
+          <input type="range" id="thr" min="-5.2" max="5.2" step="0.01" value="0"
+                 aria-label="Decision threshold on the score axis">
+          <span class="thr-read" id="thrRead">s &ge; 0.00</span>
+        </div>
+        <p class="thr-note" id="thrNote">
+          Drag the line in the chart, or this slider. Calling positive at this score is the same as
+          calling positive when <b id="thrProb">p(y=1&nbsp;|&nbsp;x) &ge; 0.50</b>.
+        </p>
+      </div>
+
+      <p class="hint">
+        <b>Drag the vertical line.</b> Push it right and you get pickier: fewer false alarms, more
+        misses. Push it left and you catch more, but cry wolf more too.
+        Keyboard: focus the chart and use <kbd>&larr;</kbd><kbd>&rarr;</kbd>.
+      </p>
+    </div>
+
+    <aside class="rail">
+
+      <div class="card">
+        <div class="cm-head">
+          <h2>What that line just did</h2>
+          <select id="cmMode" aria-label="How to show the confusion matrix">
+            <option value="count" selected>Counts</option>
+            <option value="row">Row % &mdash; p(&#375; | y)</option>
+            <option value="col">Column % &mdash; p(y | &#375;)</option>
+          </select>
+        </div>
+
+        <div class="cm">
+          <span class="corner"></span>
+          <span class="ch">Called 0</span>
+          <span class="ch">Called 1</span>
+
+          <span class="rh">Truly<br>0</span>
+          <div class="cell tn">
+            <span class="tag">TN</span>
+            <span class="n" id="cTN">0</span>
+            <span class="sub" id="sTN">correctly cleared</span>
+          </div>
+          <div class="cell fp">
+            <span class="tag">FP</span>
+            <span class="n" id="cFP">0</span>
+            <span class="sub" id="sFP">false alarms</span>
+          </div>
+
+          <span class="rh">Truly<br>1</span>
+          <div class="cell fn">
+            <span class="tag">FN</span>
+            <span class="n" id="cFN">0</span>
+            <span class="sub" id="sFN">missed</span>
+          </div>
+          <div class="cell tp">
+            <span class="tag">TP</span>
+            <span class="n" id="cTP">0</span>
+            <span class="sub" id="sTP">caught</span>
+          </div>
+        </div>
+
+        <p class="hint" id="cmNote" style="margin-top:11px">
+          Counts, straight from the samples. Switch the dropdown to see what each normalisation is for.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>The two numbers the curve plots</h2>
+        <div class="rates">
+          <span class="rl">TPR &mdash; recall, sensitivity
+            <button class="q" type="button" data-tip="Of everyone who really is positive, what fraction did we catch? TP / (TP + FN). It looks only at the top row of the matrix.">?</button>
+          </span>
+          <span class="v tpr" id="rTPR">0.00</span>
+
+          <span class="rl">FPR &mdash; false alarm rate
+            <button class="q" type="button" data-tip="Of everyone who really is negative, what fraction did we wrongly flag? FP / (FP + TN). It looks only at the bottom row.">?</button>
+          </span>
+          <span class="v fpr" id="rFPR">0.00</span>
+
+          <span class="sep-row">the curve does not plot these</span>
+
+          <span class="rl">Precision &mdash; of what we flagged
+            <button class="q" type="button" data-tip="Of everything we called positive, what fraction really was? TP / (TP + FP). This one reads DOWN a column, so it depends on how common positives are.">?</button>
+          </span>
+          <span class="v" id="rPREC">0.00</span>
+
+          <span class="rl">Accuracy</span>
+          <span class="v" id="rACC">0.00</span>
+        </div>
+
+        <p class="verdict violet" id="opVerdict" style="margin-top:12px"></p>
+      </div>
+
+    </aside>
+  </section>
+
+  <!-- ================================================== the ROC ======= -->
+  <section class="card plot-card">
+    <div class="plot-head">
+      <h2>The ROC curve &mdash; every threshold at once</h2>
+      <span class="mono" style="font-size:12.5px; color:var(--muted)">
+        AUC <span id="rAUC" style="color:var(--ink)">0.00</span>
+        &nbsp;&middot;&nbsp; EER <span id="rEER" style="color:var(--ink)">0.00</span>
+      </span>
+    </div>
+
+    <div class="roc-grid">
+      <div>
+        <canvas id="roc" tabindex="0" role="img"
+                aria-label="ROC curve plotting true positive rate against false positive rate, with the current operating point marked."></canvas>
+        <p class="hint">
+          <b>Drag the big dot.</b> It is the same threshold as the line in the chart above &mdash;
+          move either one and both move. Every dot on this curve is one setting of that line, and
+          one whole confusion matrix.
+        </p>
+      </div>
+
+      <div>
+        <h3 style="font-family:inherit; font-size:14px; font-weight:600; letter-spacing:0; text-transform:none; color:var(--ink); margin-bottom:9px">The parts of it</h3>
+        <ul class="parts" id="parts">
+          <li><button type="button" data-part="axes">
+            <span><span class="pt"><b>The two axes</b></span>
+            <span class="pd">Across: false alarm rate. Up: fraction of positives caught. Both come from the <em>rows</em> of the matrix.</span></span>
+          </button></li>
+
+          <li><button type="button" data-part="origin">
+            <span><span class="pt"><b>Bottom-left (0,&nbsp;0)</b></span>
+            <span class="pd">Threshold so high nothing is called positive. No false alarms &mdash; and nothing caught. Every ROC starts here.</span></span>
+          </button></li>
+
+          <li><button type="button" data-part="corner">
+            <span><span class="pt"><b>Top-right (1,&nbsp;1)</b></span>
+            <span class="pd">Threshold so low everything is called positive. Catches all of them, flags everyone else too. Every ROC ends here.</span></span>
+          </button></li>
+
+          <li><button type="button" data-part="curve">
+            <span><span class="pt"><b>The curve itself</b></span>
+            <span class="pd">The trace of the dot as the threshold sweeps from high to low. It can only ever go right and up, never back.</span></span>
+          </button></li>
+
+          <li><button type="button" data-part="chance">
+            <span><span class="pt"><b>The diagonal</b></span>
+            <span class="pd">Coin flipping. Catching 30&#37; of positives by flagging 30&#37; of everyone is worth nothing. Being above this line is the whole game.</span></span>
+          </button></li>
+
+          <li><button type="button" data-part="perfect">
+            <span><span class="pt"><b>Top-left (0,&nbsp;1)</b></span>
+            <span class="pd">Perfection: everything caught, nothing falsely flagged. You only reach it if the two score distributions never overlap.</span></span>
+          </button></li>
+
+          <li><button type="button" data-part="op">
+            <span><span class="pt"><b>The operating point</b></span>
+            <span class="pd">Where you actually are. The curve is a property of the <em>model</em>; this dot is a property of your <em>choice</em>.</span></span>
+          </button></li>
+
+          <li><button type="button" data-part="auc">
+            <span><span class="pt"><b>AUC &mdash; the shaded area</b></span>
+            <span class="pd">One number for the whole curve: the chance a random positive outscores a random negative. 0.5 is useless, 1.0 is perfect.</span></span>
+          </button></li>
+
+          <li><button type="button" data-part="eer">
+            <span><span class="pt"><b>EER &mdash; the equal-error point</b></span>
+            <span class="pd">Where the miss rate equals the false alarm rate. Find it where the other diagonal cuts the curve.</span></span>
+          </button></li>
+
+          <li><button type="button" data-part="cost">
+            <span><span class="pt"><b>The cost line</b></span>
+            <span class="pd">A gold ruler whose slope is set by your loss function. Slide it up-left until it just touches &mdash; that tangent is the best point to operate at.</span></span>
+          </button></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================ control deck ==== -->
+  <section class="deck">
+
+    <div class="card">
+      <h3>The problem</h3>
+      <div class="ctl">
+        <label for="sep">Separation
+          <button class="q" type="button" data-tip="How far apart the two score distributions sit, in standard deviations. This is the quality of the classifier itself — it is the only thing here that changes the shape of the ROC curve.">?</button>
+        </label>
+        <input type="range" id="sep" min="0" max="4" step="0.01" value="2">
+        <output for="sep" id="sepv">2.00</output>
+      </div>
+      <div class="ctl">
+        <label for="prev">Positives
+          <button class="q" type="button" data-tip="The fraction of the data that is genuinely positive — the base rate. Watch what it does to precision, and what it does NOT do to the ROC curve.">?</button>
+        </label>
+        <input type="range" id="prev" min="0.02" max="0.98" step="0.01" value="0.5">
+        <output for="prev" id="prevv">50%</output>
+      </div>
+      <div class="ctl">
+        <label for="npts">Samples</label>
+        <input type="range" id="npts" min="100" max="2000" step="20" value="600">
+        <output for="npts" id="nptsv">600</output>
+      </div>
+      <div class="row">
+        <button id="gen" type="button">Draw new data</button>
+        <button id="reset" type="button">Reset everything</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>What a mistake costs you</h3>
+      <div class="ctl">
+        <label for="cost">Miss&nbsp;:&nbsp;alarm
+          <button class="q" type="button" data-tip="How much worse a missed positive (false negative) is than a false alarm (false positive). Murphy calls this c, with the cost of a false negative set to c times the cost of a false positive.">?</button>
+        </label>
+        <input type="range" id="cost" min="-1.3" max="1.3" step="0.01" value="0">
+        <output for="cost" id="costv">1 : 1</output>
+      </div>
+      <p class="hint" style="margin-top:4px">
+        A missed positive costs <span class="mono" id="costC">1.0</span>&times; what a false alarm costs.
+        The cost-optimal probability threshold is then
+        <span class="mono">1/(1+c)</span> = <span class="mono" id="costThrP">0.500</span>.
+      </p>
+      <div class="row">
+        <button id="goOpt" class="gold" type="button">Snap the line to the optimum</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Show on the curve</h3>
+      <label class="check" style="display:flex; margin-bottom:8px">
+        <input type="checkbox" id="showAUC" checked> Shade the area under the curve
+      </label>
+      <label class="check" style="display:flex; margin-bottom:8px">
+        <input type="checkbox" id="showEER" checked> Mark the equal-error point
+      </label>
+      <label class="check" style="display:flex; margin-bottom:8px">
+        <input type="checkbox" id="showCost" checked> Draw the cost line and its tangent
+      </label>
+      <label class="check" style="display:flex">
+        <input type="checkbox" id="showLbl" checked> Label the corners
+      </label>
+    </div>
+
+  </section>
+
+  <!-- ====================================================== cost ====== -->
+  <section class="card">
+    <h2>Costs don&rsquo;t change the curve &mdash; they choose a point on it</h2>
+
+    <div class="cost-grid">
+      <div>
+        <dl class="facts">
+          <div class="fact" id="fThr">
+            <dt>Your threshold</dt>
+            <dd><span class="num" id="fThrP">0.500</span><br><span id="fThrNote">as a probability cut-off</span></dd>
+          </div>
+          <div class="fact lit">
+            <dt>Cost says</dt>
+            <dd><span class="num gold" id="fOptP">0.500</span><br>1 / (1 + c)</dd>
+          </div>
+          <div class="fact">
+            <dt>Cost per sample, now</dt>
+            <dd><span class="num" id="fCostNow">0.000</span><br><span id="fCostCmp">at your threshold</span></dd>
+          </div>
+          <div class="fact">
+            <dt>Best achievable</dt>
+            <dd><span class="num" id="fCostBest">0.000</span><br>over every threshold</dd>
+          </div>
+        </dl>
+
+        <p class="caution" style="margin-top:14px">
+          <b>The cost ratio is literally a slope on the ROC plot.</b> Expected cost is
+          <span class="mono">c&middot;P&middot;(1&minus;TPR) + N&middot;FPR</span>, so holding cost fixed
+          traces a straight line of slope <span class="mono" id="slopeTxt">N&nbsp;/&nbsp;(c&middot;P)</span>.
+          Slide that gold ruler up and to the left until it only just touches the curve: the touching
+          point is the cheapest place to operate. Change <span class="mono">c</span> and the ruler tilts,
+          so the best point slides along a curve that never moved.
+        </p>
+      </div>
+
+      <div>
+        <p class="verdict gold" id="costVerdict"></p>
+        <p class="caution" style="margin-top:12px">
+          This is Murphy&rsquo;s cost-sensitive rule from &sect;5.1.2.2. With a false negative
+          <span class="mono">c</span> times as expensive as a false positive, call it positive once
+          <span class="mono">p(y=1|x) &ge; 1/(1+c)</span>. At <span class="mono">c&nbsp;=&nbsp;2</span>
+          that is a threshold of <span class="mono">1/3</span> &mdash; you declare positive on much
+          weaker evidence, because missing one hurts more.
+        </p>
+        <p class="caution">
+          <b>Zero-one loss is just the special case <span class="mono">c&nbsp;=&nbsp;1</span>.</b>
+          Then the threshold is <span class="mono">0.5</span> and &ldquo;pick the most probable
+          class&rdquo; is optimal. That rule isn&rsquo;t a law &mdash; it&rsquo;s what you get when you
+          assume both mistakes hurt exactly the same.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================================================== imbalance ==== -->
+  <section class="card">
+    <h2>Why a great ROC can still be a useless classifier</h2>
+
+    <div class="imb-grid">
+      <div>
+        <canvas id="pr" role="img"
+                aria-label="Precision-recall curve for the same classifier, with the current operating point marked."></canvas>
+        <p class="hint">
+          Precision vs. recall, same model, same threshold, same dot. Drag the <b>Positives</b> slider
+          above and watch this curve sag while the ROC beside it sits perfectly still.
+        </p>
+      </div>
+
+      <div class="imb-side">
+        <dl class="facts">
+          <div class="fact">
+            <dt>Positives in the data</dt>
+            <dd><span class="num" id="iPrev">50%</span><br><span id="iCounts">0 of 0</span></dd>
+          </div>
+          <div class="fact">
+            <dt>AUC</dt>
+            <dd><span class="num" id="iAUC">0.00</span><br>barely moves with the base rate</dd>
+          </div>
+          <div class="fact">
+            <dt>Precision here</dt>
+            <dd><span class="num" id="iPrec">0.00</span><br>collapses with it</dd>
+          </div>
+          <div class="fact">
+            <dt>Precision floor</dt>
+            <dd><span class="num" id="iBase">0.50</span><br>what guessing would get</dd>
+          </div>
+        </dl>
+
+        <p class="caution">
+          <b>TPR and FPR are each computed inside one true class.</b> TPR only ever divides by the
+          number of real positives; FPR only by the number of real negatives. Rescale how many of each
+          you have and both are untouched &mdash; so the ROC curve simply does not know about class
+          imbalance. That is sometimes exactly what you want, and sometimes a trap.
+        </p>
+        <p class="caution">
+          <b>Precision divides along the other direction</b> &mdash; down a column, across both true
+          classes. With 2&#37; positives, even a 5&#37; false alarm rate buries the real ones, and
+          precision falls through the floor while the ROC curve looks just as handsome as before.
+          This is Murphy&rsquo;s &sect;5.1.3.3, and it is why a precision-recall curve is the honest
+          chart for a rare-event problem.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- =================================================== foot ========= -->
+  <section class="foot">
+
+    <div class="card">
+      <h2>The three formulas</h2>
+
+      <div class="formula">
+        <div class="expr">&#375;(x) = I( score(x) &ge; &tau; )</div>
+        <p class="plain">The whole decision rule. One number in, one comparison, one label out.
+        Everything else on this page is a consequence of which <span class="mono">&tau;</span> you pick.</p>
+      </div>
+
+      <div class="formula">
+        <div class="expr"><span class="k1">TPR</span> = TP / (TP + FN) &nbsp;&nbsp; <span class="k2">FPR</span> = FP / (FP + TN)</div>
+        <p class="plain">Of the real positives, how many did we get? Of the real negatives, how many did
+        we wrongly flag? Each divides by one <em>row</em> of the matrix &mdash; which is exactly why
+        neither one cares how many of each class there are.</p>
+      </div>
+
+      <div class="formula">
+        <div class="expr">pick <span class="k1">&#375; = 1</span> &nbsp;iff&nbsp; p(y=1|x) &ge; <span class="kg">1 / (1 + c)</span></div>
+        <p class="plain">Where to put the line, if you know what mistakes cost. Read it as: the
+        threshold is the cost of a false alarm divided by the cost of both mistakes together.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Guided walkthrough</h2>
+      <div class="steps">
+        <button type="button" data-step="0"><span class="n">step 1</span>Refuse to call anything</button>
+        <button type="button" data-step="1"><span class="n">step 2</span>Call everything</button>
+        <button type="button" data-step="2"><span class="n">step 3</span>Ruin the classifier</button>
+        <button type="button" data-step="3"><span class="n">step 4</span>Make misses expensive</button>
+        <button type="button" data-step="4"><span class="n">step 5</span>Make positives rare</button>
+      </div>
+      <p class="step-note" id="stepNote">
+        Five moves, in order. Each one sets the controls for you &mdash; then keep fiddling.
+      </p>
+
+      <p class="verdict" style="margin-top:14px">
+        <b>The one thing to carry out of here:</b> the curve is what your model can do;
+        the dot is what you decided to do. Train to move the curve. Choose to move the dot.
+      </p>
+    </div>
+
+  </section>
+
+  <p class="colophon">
+    Built for CS&nbsp;473 from Kevin&nbsp;P. Murphy, <em>Probabilistic Machine Learning: An
+    Introduction</em>, &sect;5.1.2&ndash;5.1.3 &mdash; zero-one loss, cost-sensitive classification,
+    the confusion matrix (Tables&nbsp;5.3&ndash;5.5), and ROC curves (Eq.&nbsp;5.16&ndash;5.19).
+    No build step, no dependencies.
+  </p>
+
+</div>
+
+<div id="tip" role="tooltip" hidden></div>
+<p class="sr-only" id="live" role="status" aria-live="polite"></p>
+
+<script src="script.js"></script>
+</body>
+</html>

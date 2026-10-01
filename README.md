@@ -10,6 +10,7 @@ the deployed site on GitHub Pages.
 |---|---|---|
 | ✅ | [`index.html`](index.html) — **The Covariance Ellipse** | Murphy §3.2: covariance matrix, Mahalanobis contours, eigendecomposition, conditioning a 2D Gaussian |
 | ✅ | [`gmm/`](gmm/) — **Who Made This Point?** | Murphy §3.5: mixture models, the latent variable z, responsibilities, the GMM → K-means limit |
+| ✅ | [`roc/`](roc/) — **Where Do You Draw the Line?** | Murphy §5.1.2–5.1.3: the decision threshold, cost-sensitive classification, the confusion matrix, ROC and AUC, class imbalance |
 | ☐ | Uncorrelated ≠ independent | ρ ≈ 0 for a Gaussian blob vs. Y = X², side by side |
 | ☐ | Simpson's paradox | Iris sepal data with a "merge species" toggle |
 | ☐ | Mahalanobis vs. Euclidean | drop a test point, compare both distances |
@@ -54,5 +55,5 @@ Source** and choose **GitHub Actions**. After that the workflow handles every de
 
 ## Source
 
-Kevin P. Murphy, *Probabilistic Machine Learning: An Introduction*, §3.2 —
-the multivariate Gaussian. CC-BY-NC-ND.
+Kevin P. Murphy, *Probabilistic Machine Learning: An Introduction*. CC-BY-NC-ND.
+Each module names the sections it covers in its own README.
