@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Wrong Codebook</title>
+<meta name="description" content="Entropy, cross entropy and KL divergence as bits: drag what the weather really does and what you believe it does, and watch your codebook waste bits.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ==================================================== masthead ==== -->
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 4 &middot; Murphy &sect;6.1&ndash;6.2</p>
+    <h1>The Wrong Codebook</h1>
+    <p class="lede">
+      To send the weather in bits, you give short codewords to the weather you expect and long ones to
+      the weather you don&rsquo;t. That makes every belief a codebook. When your beliefs match reality,
+      your messages are as short as possible: that length is the <strong>entropy</strong>. When they
+      don&rsquo;t, you pay extra on every symbol, and <strong>the extra is the KL divergence</strong>.
+    </p>
+  </header>
+
+  <!-- ====================================================== bench ===== -->
+  <section class="bench">
+
+    <div class="card chart-card">
+
+      <div class="ledger" aria-live="polite">
+        <div class="ledger-cell">
+          <span class="ledger-label">Your code spends</span>
+          <span class="ledger-num num"><b id="vHce">2.00</b> bits</span>
+          <span class="ledger-sym">cross entropy H(p, q)</span>
+        </div>
+        <span class="ledger-op" aria-hidden="true">=</span>
+        <div class="ledger-cell">
+          <span class="ledger-label"><i class="key key-p"></i>A perfect code needs</span>
+          <span class="ledger-num num"><b id="vH">1.75</b> bits</span>
+          <span class="ledger-sym">entropy H(p)</span>
+        </div>
+        <span class="ledger-op" aria-hidden="true">+</span>
+        <div class="ledger-cell">
+          <span class="ledger-label"><i class="key key-waste"></i>You waste</span>
+          <span class="ledger-num num t-waste"><b id="vKL">0.25</b> bits</span>
+          <span class="ledger-sym">KL divergence D(p&#8214;q)</span>
+        </div>
+      </div>
+
+      <div class="ledger-track">
+        <div class="ledger-bar"><span class="seg seg-h" id="segH"></span><span class="seg seg-kl" id="segKL"></span></div>
+        <div class="ledger-scale num" id="ledgerScale"></div>
+      </div>
+
+      <p class="story" id="story"></p>
+
+      <div class="chart-head">
+        <h2>Area = bits</h2>
+        <div class="legend">
+          <span class="legend-item"><i class="sw sw-q"></i> Your codeword length, &minus;log&#8322;q</span>
+          <span class="legend-item"><i class="sw sw-p"></i> Perfect length, &minus;log&#8322;p</span>
+          <span class="legend-item"><i class="sw sw-waste"></i> Wasted</span>
+          <span class="legend-item"><i class="sw sw-saved"></i> Saved</span>
+        </div>
+      </div>
+
+      <div class="chart-box">
+        <svg id="chart" viewBox="0 0 680 330" role="img"
+             aria-label="One column per kind of weather. Width is how often it happens, height is how many bits its codeword costs, so total area is bits per symbol."></svg>
+      </div>
+
+      <p class="hint">
+        Each column is one kind of weather. <b>Width</b> is how often it happens. <b>Height</b> is how
+        many bits its codeword costs. So the <b>area</b> is what that weather adds to the average
+        message, and the total shaded area is what you spend per symbol. The red always outweighs the
+        green: a wrong codebook can get lucky on one symbol, but never on average.
+      </p>
+    </div>
+
+    <aside class="rail">
+
+      <div class="card editor">
+        <h2><i class="key key-p"></i>Reality &middot; p</h2>
+        <p class="ed-sub">How often each kind of weather actually happens.</p>
+        <svg id="edP" class="ed-svg" aria-label="Reality: drag a bar to change how often that weather happens"></svg>
+      </div>
+
+      <div class="card editor">
+        <div class="ed-head">
+          <h2><i class="key key-q"></i>Your belief &middot; q</h2>
+          <button type="button" class="btn btn-ghost" id="btnSwap" title="Swap reality and belief">Swap p &#8644; q</button>
+        </div>
+        <p class="ed-sub">What you expect. Your codebook is built from this.</p>
+        <svg id="edQ" class="ed-svg" aria-label="Your belief: drag a bar to change how often you expect that weather"></svg>
+      </div>
+
+      <p class="hint rail-hint">
+        <b>Drag a bar.</b> The others rescale so each side still adds to 100%.
+        Keyboard: tab to a bar, then <kbd>&uarr;</kbd><kbd>&darr;</kbd> (hold <kbd>Shift</kbd> for bigger steps).
+      </p>
+
+      <div class="card">
+        <h2>Things to try</h2>
+        <ul class="tries">
+          <li>
+            <div><b>Believe the truth.</b> Copy reality into your belief. The red and green disappear and the waste drops to zero.</div>
+            <button type="button" class="btn" data-preset="match">Try it</button>
+          </li>
+          <li>
+            <div><b>Rule out snow.</b> It snows 20% of the time, but you expect it 1%. Every snowy day costs almost 7 bits.</div>
+            <button type="button" class="btn" data-preset="ruleout">Try it</button>
+          </li>
+          <li>
+            <div><b>Make the opposite mistake.</b> Swap the roles: snow is rare and you over-expect it. You waste far less.</div>
+            <button type="button" class="btn" data-preset="reverse">Try it</button>
+          </li>
+          <li>
+            <div><b>Shrug at everything.</b> A uniform belief gives every codeword 2 bits. The waste is exactly 2 &minus; H(p).</div>
+            <button type="button" class="btn" data-preset="shrug">Try it</button>
+          </li>
+          <li>
+            <div><b>Nothing to compress.</b> When reality is uniform, the entropy hits its 2-bit maximum.</div>
+            <button type="button" class="btn" data-preset="flat">Try it</button>
+          </li>
+        </ul>
+      </div>
+
+    </aside>
+  </section>
+
+  <!-- ====================================================== below ===== -->
+  <section class="pair">
+
+    <div class="card">
+      <h2>The message</h2>
+      <p class="card-sub">
+        Weather drawn from reality, written out with each codebook. Each block&rsquo;s width is the
+        bits its codeword costs. The same days take more room in your code.
+      </p>
+
+      <div class="tape">
+        <div class="tape-row">
+          <span class="tape-label"><i class="key key-q"></i>Your code</span>
+          <div class="tape-strip" id="tapeQ"></div>
+        </div>
+        <div class="tape-row">
+          <span class="tape-label"><i class="key key-p"></i>Perfect code</span>
+          <div class="tape-strip" id="tapeP"></div>
+        </div>
+      </div>
+
+      <dl class="counters">
+        <div><dt>Days sent</dt><dd class="num" id="nSent">40</dd></div>
+        <div><dt>Your bits</dt><dd class="num" id="bitsYour">0</dd></div>
+        <div><dt>Perfect bits</dt><dd class="num" id="bitsPerfect">0</dd></div>
+        <div><dt>Wasted</dt><dd class="num t-waste" id="bitsExtra">0</dd></div>
+      </dl>
+
+      <p class="converge">
+        Wasted per day so far: <b class="num" id="extraRate">0.00</b> bits.
+        In the long run this settles at D(p&#8214;q) = <b class="num" id="klRate">0.25</b> bits.
+      </p>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="btnPlay" aria-pressed="false">Play</button>
+        <button type="button" class="btn" id="btnAdd">Send 500 more</button>
+        <button type="button" class="btn btn-ghost" id="btnReset">Reset</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>The codebook</h2>
+      <p class="card-sub">
+        Shannon&rsquo;s rule: a symbol you expect with probability q gets a codeword &minus;log&#8322;q bits
+        long. Real codes round to whole bits, so the last column shows a real (Huffman) code built from
+        your belief.
+      </p>
+      <div class="table-scroll">
+        <table class="cb">
+          <thead>
+            <tr>
+              <th scope="col">Weather</th>
+              <th scope="col" class="num c-p">Happens</th>
+              <th scope="col" class="num c-q">You expect</th>
+              <th scope="col" class="num">Perfect bits</th>
+              <th scope="col" class="num">Your bits</th>
+              <th scope="col" class="num">Extra</th>
+              <th scope="col" class="num">Codeword</th>
+            </tr>
+          </thead>
+          <tbody id="codebook"></tbody>
+        </table>
+      </div>
+
+      <div class="asym">
+        <span class="asym-label">Swap the roles</span>
+        <p>
+          D(q&#8214;p) = <b class="num" id="vRev">0.31</b> bits.
+          <span id="revNote"></span>
+        </p>
+      </div>
+    </div>
+
+  </section>
+
+  <footer class="foot">
+    <p>
+      Murphy, <i>Probabilistic Machine Learning: An Introduction</i>, &sect;6.1.1 (entropy),
+      &sect;6.1.2 (cross entropy), &sect;6.2 (KL divergence). Bits use log base 2. Your belief is kept
+      at 1% or more per symbol, since a belief of exactly 0 would need an infinitely long codeword.
+    </p>
+  </footer>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

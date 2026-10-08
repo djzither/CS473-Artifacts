@@ -11,6 +11,7 @@ the deployed site on GitHub Pages.
 | ✅ | [`index.html`](index.html) — **The Covariance Ellipse** | Murphy §3.2: covariance matrix, Mahalanobis contours, eigendecomposition, conditioning a 2D Gaussian |
 | ✅ | [`gmm/`](gmm/) — **Who Made This Point?** | Murphy §3.5: mixture models, the latent variable z, responsibilities, the GMM → K-means limit |
 | ✅ | [`roc/`](roc/) — **Where Do You Draw the Line?** | Murphy §5.1.2–5.1.3: the decision threshold, cost-sensitive classification, the confusion matrix, ROC and AUC, class imbalance |
+| ✅ | [`kl/`](kl/) — **The Wrong Codebook** | Murphy §6.1–6.2: entropy, cross entropy, KL divergence as wasted bits, Shannon code lengths, KL's asymmetry |
 | ☐ | Uncorrelated ≠ independent | ρ ≈ 0 for a Gaussian blob vs. Y = X², side by side |
 | ☐ | Simpson's paradox | Iris sepal data with a "merge species" toggle |
 | ☐ | Mahalanobis vs. Euclidean | drop a test point, compare both distances |
