@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Copies of Copies</title>
+<meta name="description" content="Mutual information, the chain rule and the data processing inequality: pass a fair bit through two noisy channels and watch what processing can and cannot do.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ==================================================== masthead ==== -->
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 5 &middot; Murphy &sect;6.3</p>
+    <h1>Copies of Copies</h1>
+    <p class="lede">
+      A fair coin <b>X</b> is observed through a noisy channel to give <b>Y</b>. Then <b>Y</b> is
+      processed, through more noise, into <b>Z</b>. Every step can only lose information about
+      <b>X</b>, never create it. That is the <strong>data processing inequality</strong>, and the
+      <strong>chain rule</strong> tells you exactly where the lost bits went.
+    </p>
+  </header>
+
+  <!-- ====================================================== bench ===== -->
+  <section class="bench">
+
+    <div class="card chart-card">
+
+      <div class="chart-head">
+        <h2>The pipeline &middot; X &rarr; Y &rarr; Z</h2>
+        <span class="r-note">X and Z disagree with probability <b class="num">r = <span id="vR">0.100</span></b></span>
+      </div>
+
+      <div class="chart-box">
+        <svg id="pipe" viewBox="0 0 680 210" role="img"
+             aria-label="Three stages, X, Y and Z, each a bit that is 0 or 1. Between them, a channel keeps the bit with probability one minus the noise and flips it with probability equal to the noise. Line thickness shows the probability."></svg>
+      </div>
+
+      <div class="tape" aria-hidden="true">
+        <div class="tape-row"><span class="tape-label">X</span><div class="tape-strip" id="tapeX"></div></div>
+        <div class="tape-row"><span class="tape-label">Y</span><div class="tape-strip" id="tapeY"></div></div>
+        <div class="tape-row"><span class="tape-label">Z</span><div class="tape-strip" id="tapeZ"></div></div>
+      </div>
+      <p class="hint" id="tapeNote"></p>
+
+      <!-- ------------------------------------------------- the bars -->
+      <div class="bars" aria-live="polite">
+        <div class="bars-head">
+          <h2>Bits about X</h2>
+          <span class="bars-eq num">I(X;Y) = I(X;Z) + I(X;Y|Z)</span>
+        </div>
+
+        <div class="bar-row">
+          <div class="bar-label">
+            <span class="bar-sym num">I(X;Y)</span>
+            <span class="bar-desc">in the original observation</span>
+          </div>
+          <div class="bar-track"><span class="seg seg-keep" id="b1keep"></span><span class="seg seg-lost" id="b1lost"></span></div>
+          <span class="bar-val num" id="vIxy">0.531</span>
+        </div>
+
+        <div class="bar-row">
+          <div class="bar-label">
+            <span class="bar-sym num"><i class="key key-keep"></i>I(X;Z)</span>
+            <span class="bar-desc">still there after processing</span>
+          </div>
+          <div class="bar-track"><span class="seg seg-keep" id="b2keep"></span></div>
+          <span class="bar-val num t-keep" id="vIxz">0.531</span>
+        </div>
+
+        <div class="bar-row">
+          <div class="bar-label">
+            <span class="bar-sym num"><i class="key key-lost"></i>I(X;Y|Z)</span>
+            <span class="bar-desc">extra in Y once Z is known</span>
+          </div>
+          <div class="bar-track"><span class="seg seg-gap" id="b3gap"></span><span class="seg seg-lost" id="b3lost"></span></div>
+          <span class="bar-val num t-lost" id="vIxyGz">0.000</span>
+        </div>
+
+        <div class="bar-scale num" aria-hidden="true"><span>0</span><span>0.25</span><span>0.5</span><span>0.75</span><span>1 bit</span></div>
+      </div>
+
+      <p class="story" id="story"></p>
+    </div>
+
+    <aside class="rail">
+
+      <div class="card">
+        <h2>Noise</h2>
+
+        <div class="slider">
+          <label for="sP">
+            <span><b class="num">p</b> &middot; noise in the first observation</span>
+            <output class="num" id="oP" for="sP">0.100</output>
+          </label>
+          <input type="range" id="sP" min="0" max="0.5" step="0.001" value="0.1">
+          <p class="slider-sub">Y is X, flipped with probability p.</p>
+        </div>
+
+        <div class="slider">
+          <label for="sQ">
+            <span><b class="num">q</b> &middot; extra noise in processing</span>
+            <output class="num" id="oQ" for="sQ">0.000</output>
+          </label>
+          <input type="range" id="sQ" min="0" max="0.5" step="0.001" value="0">
+          <p class="slider-sub">Z is Y, flipped again with probability q. Z never looks at X.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Things to try</h2>
+        <ul class="tries">
+          <li>
+            <div><b>No information lost.</b> p = 0.1, q = 0. Z is an exact copy of Y.</div>
+            <button type="button" class="btn" data-p="0.1" data-q="0">Try it</button>
+          </li>
+          <li>
+            <div><b>Some information lost.</b> p = 0.1, q = 0.2. Part of the top bar turns red.</div>
+            <button type="button" class="btn" data-p="0.1" data-q="0.2">Try it</button>
+          </li>
+          <li>
+            <div><b>All information lost.</b> p = 0.1, q = 0.5. Z is a fresh coin flip.</div>
+            <button type="button" class="btn" data-p="0.1" data-q="0.5">Try it</button>
+          </li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>The numbers</h2>
+        <dl class="calc">
+          <div><dt>h&#8322;(p)</dt><dd class="num" id="cHp">0.469</dd></div>
+          <div><dt>r = p + q &minus; 2pq</dt><dd class="num" id="cR">0.100</dd></div>
+          <div><dt>h&#8322;(r)</dt><dd class="num" id="cHr">0.469</dd></div>
+          <div><dt>I(X;Y) = 1 &minus; h&#8322;(p)</dt><dd class="num" id="cIxy">0.531</dd></div>
+          <div><dt>I(X;Z) = 1 &minus; h&#8322;(r)</dt><dd class="num" id="cIxz">0.531</dd></div>
+          <div><dt>I(X;Y|Z) = h&#8322;(r) &minus; h&#8322;(p)</dt><dd class="num" id="cIxyGz">0.000</dd></div>
+          <div><dt>I(X;Z|Y)</dt><dd class="num">0</dd></div>
+        </dl>
+        <p class="hint">
+          h&#8322;(t) = &minus;t log&#8322;t &minus; (1&minus;t) log&#8322;(1&minus;t), the entropy of a coin
+          that lands heads with probability t, with h&#8322;(0) = h&#8322;(1) = 0. All values are in bits.
+        </p>
+      </div>
+
+    </aside>
+  </section>
+
+  <!-- ====================================================== below ===== -->
+  <section class="trio">
+
+    <div class="card">
+      <h2>Reading the notation</h2>
+      <dl class="gloss">
+        <div>
+          <dt class="num">I(X;Y)</dt>
+          <dd>How much knowing Y tells us about X. The <b>semicolon</b> separates the two things being compared.</dd>
+        </div>
+        <div>
+          <dt class="num">I(X;Y,Z)</dt>
+          <dd>How much knowing Y <i>and</i> Z together tells us about X. The comma bundles them into one observation.</dd>
+        </div>
+        <div>
+          <dt class="num">I(X;Y|Z)</dt>
+          <dd>How much <i>extra</i> Y tells us about X when Z is already known. The <b>vertical bar</b> means &ldquo;given.&rdquo;</dd>
+        </div>
+        <div>
+          <dt class="num">I(X;Z|Y)</dt>
+          <dd>How much extra Z tells us once Y is known. Here it is <b>0</b>: Z is made from Y alone, so it has nothing new to say.</dd>
+        </div>
+      </dl>
+    </div>
+
+    <div class="card">
+      <h2>Why the bars add up</h2>
+      <p class="card-sub">
+        The <b>chain rule</b> splits what Y and Z tell us together into &ldquo;first one, then the
+        extra from the other.&rdquo; You can peel them off in either order:
+      </p>
+      <div class="derive num">
+        <p>I(X;Y,Z) = I(X;Y) + I(X;Z|Y)</p>
+        <p>I(X;Y,Z) = I(X;Z) + I(X;Y|Z)</p>
+      </div>
+      <p class="card-sub">
+        In the first line, I(X;Z|Y) = 0, so I(X;Y,Z) = I(X;Y): once you hold Y, also holding Z adds
+        nothing. Setting the two lines equal gives
+      </p>
+      <div class="derive num derive-key">
+        <p>I(X;Y) = <span class="t-keep">I(X;Z)</span> + <span class="t-lost">I(X;Y|Z)</span></p>
+      </div>
+      <p class="card-sub">which is exactly the picture: the top bar is the other two laid end to end.</p>
+    </div>
+
+    <div class="card">
+      <h2>Processing can&rsquo;t help</h2>
+      <p class="card-sub">
+        Mutual information is never negative, so I(X;Y|Z) &ge; 0. The identity then gives the
+        <b>data processing inequality</b>:
+      </p>
+      <div class="derive num derive-key"><p>I(X;Z) &le; I(X;Y)</p></div>
+      <p class="card-sub">
+        You can see it in the formulas too: r &minus; p = q(1 &minus; 2p) &ge; 0, so Z is always at
+        least as noisy as Y, and h&#8322; only grows on [0, &frac12;].
+      </p>
+      <ul class="facts">
+        <li><b>q = 0:</b> Z = Y, nothing is lost, and I(X;Y|Z) = 0. Equality holds.</li>
+        <li><b>q = 0.5:</b> Z is a fair coin no matter what Y is, so Z is independent of X and I(X;Z) = 0. All of I(X;Y) moves into the red bar.</li>
+        <li><b>Any q:</b> no cleverness in the processing step can push I(X;Z) above I(X;Y). Processing can keep information or destroy it, never create it.</li>
+      </ul>
+    </div>
+
+  </section>
+
+  <footer class="foot">
+    <p>
+      Murphy, <i>Probabilistic Machine Learning: An Introduction</i>, &sect;6.3 (mutual information,
+      conditional mutual information and its chain rule, the data processing inequality). Each channel
+      is a binary symmetric channel. All quantities are exact, in bits (log base 2). The 40 sample bits
+      are fixed random draws, so moving a slider adds or removes flips rather than reshuffling them.
+    </p>
+  </footer>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
