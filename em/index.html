@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Touch, Then Climb</title>
+<meta name="description" content="EM for a Gaussian mixture, step by step: watch the E step rebuild a lower bound that touches the true score, the M step climb it, and the KL gap open and close.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ==================================================== masthead ==== -->
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 6 &middot; Murphy &sect;8.7.2&ndash;8.7.3</p>
+    <h1>Touch, Then Climb</h1>
+    <p class="lede">
+      We can write down the <strong>true score</strong> of a Gaussian mixture exactly, but finding where
+      it peaks is hard. <strong>EM</strong> never climbs it directly. It builds an easier curve that sits
+      underneath and <strong>touches</strong> it, climbs that, and repeats. This page shows every step
+      with real numbers.
+    </p>
+    <p class="scope">
+      <b>A simplified EM example that learns one centre.</b> Fourteen fixed points, two clusters, both
+      with variance &sigma;&sup2; = 1 and weight &pi; = &frac12;. Cluster 2&rsquo;s centre &mu;&#8322; stays
+      where you put it. EM learns only &mu;&#8321;, so the plots below show the whole problem, not a slice of it.
+    </p>
+  </header>
+
+  <!-- ================================================== controls ====== -->
+  <section class="bench">
+    <div class="card controls" role="group" aria-label="EM controls">
+      <div class="btn-row">
+        <button type="button" class="btn btn-step" id="btnE">E step</button>
+        <button type="button" class="btn btn-step" id="btnM">M step</button>
+        <button type="button" class="btn" id="btnPlay" aria-pressed="false">Auto-play</button>
+        <button type="button" class="btn btn-quiet" id="btnReset">Reset</button>
+        <span class="count" aria-live="polite"><span id="stepCount">No steps yet</span> &middot; <b id="nextUp">Next: E step</b></span>
+      </div>
+      <ol class="chips">
+        <li id="chip-e1"><span class="chip-k">E step</span><span class="chip-t">Update our beliefs about membership</span></li>
+        <li id="chip-m"><span class="chip-k">M step</span><span class="chip-t">Improve the model with those beliefs fixed</span></li>
+        <li id="chip-e2"><span class="chip-k">Next E step</span><span class="chip-t">Rebuild the bound at the new model</span></li>
+      </ol>
+      <p class="phase-head" id="phaseHead" aria-live="polite">Start: nothing has happened yet</p>
+    </div>
+
+    <!-- ---------------------------------------------- view 1 -->
+    <div class="view">
+      <div class="card plot-card">
+        <div class="plot-head">
+          <h2><span class="vnum">1</span> Clusters and membership probabilities</h2>
+          <div class="legend">
+            <span><i class="sw sw-c1"></i>cluster 1 &middot; learned</span>
+            <span><i class="sw sw-c2"></i>cluster 2 &middot; fixed</span>
+            <span><i class="sw sw-mid"></i>50/50</span>
+          </div>
+        </div>
+        <svg id="plotClusters" class="plot" viewBox="0 0 760 330" role="img"
+             aria-label="The fourteen data points on a line, with the two weighted Gaussian bumps above them. Below, two rows of coloured dots: the beliefs q currently in use, and the posterior under the centres as drawn. Blue means cluster 1, red cluster 2, purple undecided. Drag the numbered circles to move the centres."></svg>
+        <p class="hint">
+          Each point gets two dots. <b>q</b>: the membership probabilities EM is currently using.
+          <b>posterior</b>: what the model says right now, p(z | y, &theta;). These probabilities are
+          the <b>responsibilities</b>. Drag circle <b class="t-c1">1</b> or <b class="t-c2">2</b> to set where a run starts.
+        </p>
+      </div>
+      <aside class="note card"><h3>What just happened</h3><p id="note1"></p></aside>
+    </div>
+
+    <!-- ---------------------------------------------- view 2 -->
+    <div class="view">
+      <div class="card plot-card">
+        <div class="plot-head">
+          <h2><span class="vnum">2</span> True score and lower bound, as functions of &mu;&#8321;</h2>
+          <div class="legend">
+            <span><i class="ln ln-score"></i>true score &#8467;(&mu;&#8321;)</span>
+            <span><i class="ln ln-bound"></i>bound &#8466;(&mu;&#8321;, q)</span>
+            <span><i class="sw sw-gap"></i>KL gap</span>
+          </div>
+        </div>
+        <svg id="plotScore" class="plot" viewBox="0 0 760 340" role="img"
+             aria-label="The true score, the observed-data log likelihood, plotted against the learned centre mu 1, with the lower bound under it. A vertical line marks the current mu 1, and a bracket shows the gap between the curves there."></svg>
+        <p class="hint">
+          Everything except &mu;&#8321; is held fixed, so this one curve is the entire landscape EM is climbing.
+          Small dots mark where &mu;&#8321; has been. The red tick on the axis is &mu;&#8322;.
+        </p>
+      </div>
+      <aside class="note card"><h3>Score and bound</h3><p id="note2"></p></aside>
+    </div>
+
+    <!-- ---------------------------------------------- view 3 -->
+    <div class="view">
+      <div class="card plot-card">
+        <div class="plot-head">
+          <h2><span class="vnum">3</span> Progress and the KL gap</h2>
+          <div class="legend">
+            <span><i class="ln ln-score"></i>true score</span>
+            <span><i class="ln ln-bound"></i>bound</span>
+            <span><i class="sw sw-gap"></i>gap</span>
+          </div>
+        </div>
+        <svg id="plotProgress" class="plot" viewBox="0 0 760 380" role="img"
+             aria-label="The true score and the bound recorded after each half-step, with the gap between them shown again underneath as bars on their own scale."></svg>
+        <div class="identity" aria-live="polite">
+          <p class="id-eq num">
+            <span class="t-score">&#8467;(&theta;)</span> &minus; <span class="t-bound">&#8466;(&theta;, q)</span>
+            = <span class="big">&Sigma;</span><sub>n</sub> D<sub>KL</sub>( q<sub>n</sub>(z<sub>n</sub>) &#8214; p(z<sub>n</sub> | y<sub>n</sub>, &theta;) )
+          </p>
+          <p class="id-num num">
+            <span class="t-score" id="idLL">0</span> &minus; (<span class="t-bound" id="idLB">0</span>)
+            = <span class="t-gap" id="idGap">0</span>
+            <span class="id-check">and adding up the 14 KL terms directly gives <span class="t-gap" id="idKL">0</span></span>
+          </p>
+        </div>
+      </div>
+      <aside class="note card"><h3>The gap</h3><p id="note3"></p></aside>
+    </div>
+  </section>
+
+  <!-- ================================================== setup ========= -->
+  <section class="duo">
+    <div class="card">
+      <h2>Where to start</h2>
+      <div class="slider">
+        <label for="sMu1"><span><b class="t-c1">&mu;&#8321;</b> &middot; starting centre of cluster 1 (learned)</span><output class="num" id="oMu1" for="sMu1">&minus;0.50</output></label>
+        <input type="range" id="sMu1" min="-5.5" max="6.5" step="0.05" value="-0.5">
+      </div>
+      <div class="slider">
+        <label for="sMu2"><span><b class="t-c2">&mu;&#8322;</b> &middot; centre of cluster 2 (fixed)</span><output class="num" id="oMu2" for="sMu2">&minus;2.00</output></label>
+        <input type="range" id="sMu2" min="-5.5" max="6.5" step="0.05" value="-2">
+      </div>
+      <p class="hint">Moving either centre restarts the run. Fixed throughout: &sigma;&#8321; = &sigma;&#8322; = 1, &pi;&#8321; = &pi;&#8322; = &frac12;.</p>
+    </div>
+
+    <div class="card">
+      <h2>Things to try</h2>
+      <ul class="tries">
+        <li>
+          <div><b>A smooth climb.</b> &mu;&#8322; sits on the left group; &mu;&#8321; starts in the gap and walks right in a few big steps, then tiny ones.</div>
+          <button type="button" class="btn" data-mu1="-0.5" data-mu2="-2">Try it</button>
+        </li>
+        <li>
+          <div><b>The gap grows before it shrinks.</b> &mu;&#8321; has to cross &mu;&#8322;&rsquo;s group. Watch the gap bars: the second M step opens a much bigger gap than the first.</div>
+          <button type="button" class="btn" data-mu1="5.5" data-mu2="3.3">Try it</button>
+        </li>
+        <li>
+          <div><b>Stuck on a lower peak.</b> &mu;&#8322; sits between the groups. Starting on the right, EM settles on the right group even though the left one scores higher.</div>
+          <button type="button" class="btn" data-mu1="4" data-mu2="0.6">Try it</button>
+        </li>
+        <li>
+          <div><b>Same setup, other side.</b> Start on the left instead and EM finds the higher peak. The starting point decided it.</div>
+          <button type="button" class="btn" data-mu1="-4" data-mu2="0.6">Try it</button>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ==================================================== below ======= -->
+  <section class="trio">
+
+    <div class="card">
+      <h2>Why build a bound at all?</h2>
+      <p class="card-sub">We know the true score exactly. For our 14 points it is</p>
+      <div class="derive num"><p>&#8467;(&mu;&#8321;) = &Sigma;<sub>n</sub> log [ &frac12;N(y<sub>n</sub> | &mu;&#8321;, 1) + &frac12;N(y<sub>n</sub> | &mu;&#8322;, 1) ]</p></div>
+      <p class="card-sub">
+        The trouble is the <b>log of a sum</b>. Set its slope to zero and you get
+        &mu;&#8321; = (weighted average of the points), where the weights are the responsibilities,
+        which themselves depend on &mu;&#8321;. The answer appears on both sides, so there is no formula
+        to just solve.
+      </p>
+      <p class="card-sub">
+        EM breaks the loop. It <b>freezes</b> the weights as q, and then the bound is a simple parabola in
+        &mu;&#8321; whose peak <i>is</i> the weighted average. That&rsquo;s the M step:
+      </p>
+      <div class="derive num derive-key"><p>&mu;&#8321; &larr; &Sigma;<sub>n</sub> q<sub>n1</sub> y<sub>n</sub> / &Sigma;<sub>n</sub> q<sub>n1</sub></p></div>
+      <p class="card-sub">
+        Nothing is subtracted from the cluster equations to make this work. The bound differs from the
+        true score by exactly the KL gap, and the identity on the right says so to the last decimal.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Reading the identity</h2>
+      <div class="derive num"><p>&#8467;(&theta;) &minus; &#8466;(&theta;, q) = &Sigma;<sub>n</sub> D<sub>KL</sub>( q<sub>n</sub>(z<sub>n</sub>) &#8214; p(z<sub>n</sub> | y<sub>n</sub>, &theta;) )</p></div>
+      <dl class="gloss">
+        <div><dt class="num">&theta;</dt><dd>The model&rsquo;s settings. Here only &mu;&#8321; ever changes.</dd></div>
+        <div><dt class="num">&#8467;(&theta;)</dt><dd>The <b>true score</b>: how probable the model says our data is, as a log. Higher is better. This is the observed-data log likelihood.</dd></div>
+        <div><dt class="num">y<sub>n</sub>, z<sub>n</sub></dt><dd>Point number n, and the hidden label saying which cluster made it. We see y<sub>n</sub>, never z<sub>n</sub>.</dd></div>
+        <div><dt class="num">q<sub>n</sub>(z<sub>n</sub>)</dt><dd>Our <b>belief</b> about point n&rsquo;s label: a probability for cluster 1 and one for cluster 2.</dd></div>
+        <div><dt class="num">p(z<sub>n</sub> | y<sub>n</sub>, &theta;)</dt><dd>What the model, with its current settings, says that label probably is. These are the <b>responsibilities</b>.</dd></div>
+        <div><dt class="num">&#8466;(&theta;, q)</dt><dd>The <b>lower bound</b> (ELBO): a score we get by trusting q. Never above &#8467;.</dd></div>
+        <div><dt class="num">D<sub>KL</sub>( a &#8214; b )</dt><dd>How far belief a is from b. Never negative, and zero exactly when they match.</dd></div>
+        <div><dt class="num">&Sigma;<sub>n</sub></dt><dd>Add that up over all 14 points.</dd></div>
+      </dl>
+    </div>
+
+    <div class="card">
+      <h2>What EM guarantees, and what it doesn&rsquo;t</h2>
+      <p class="card-sub">One M step, written as a chain:</p>
+      <div class="derive num">
+        <p>&#8467;(&theta;<sub>new</sub>) &ge; &#8466;(&theta;<sub>new</sub>, q)</p>
+        <p class="indent">&ge; &#8466;(&theta;<sub>old</sub>, q) = &#8467;(&theta;<sub>old</sub>)</p>
+      </div>
+      <p class="card-sub">
+        The first &ge; is because KL is never negative. The second is because the M step picks the
+        bound&rsquo;s peak. The = is because the E step made q the posterior, so the gap was zero.
+      </p>
+      <div class="derive num derive-key"><p>The true score never goes down.</p></div>
+      <ul class="facts">
+        <li><b>Promised:</b> &#8467; does not decrease from one step to the next.</li>
+        <li><b>Not promised:</b> that the KL gap shrinks step by step. It is zero after every E step and can open wider after a later M step than an earlier one.</li>
+        <li><b>Not promised:</b> that &mu;&#8321; heads for the highest peak. It climbs whatever hill it starts on.</li>
+        <li><b>Not promised:</b> the best answer. EM settles where the bound&rsquo;s peak is where it already stands, which can be a lower peak.</li>
+      </ul>
+    </div>
+
+  </section>
+
+  <footer class="foot">
+    <p>
+      Murphy, <i>Probabilistic Machine Learning: An Introduction</i>, &sect;8.7.2&ndash;8.7.3 (the EM algorithm,
+      its lower bound, EM for a GMM). Scores are natural logs (nats). Every curve and number is computed
+      on the page: probabilities are combined with log-sum-exp, and the KL terms come straight from log
+      posteriors, so nothing underflows even with a centre far from every point. A run counts as settled
+      when an M step moves &mu;&#8321; by less than 0.0005.
+    </p>
+  </footer>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
