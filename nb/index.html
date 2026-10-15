@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Same Votes, Different Teachers</title>
+<meta name="description" content="Naive Bayes and logistic regression on a two-word spam filter: multiply evidence, add votes in log space, and turn the total into a probability. Same prediction form, different ways of learning the votes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ==================================================== masthead ==== -->
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 7 &middot; Murphy &sect;9.3&ndash;9.4, &sect;10.2</p>
+    <h1>Same Votes, Different Teachers</h1>
+    <p class="lede">
+      A spam filter looks at an email and checks two words: <strong>&ldquo;free&rdquo;</strong> and
+      <strong>&ldquo;winner&rdquo;</strong>. Naive Bayes and logistic regression both reach their answer
+      the same way. Each clue casts a <strong>vote</strong>, the votes are added up, and the total becomes
+      a probability. They differ in <em>how they learn</em> those votes.
+    </p>
+    <p class="scope">
+      <b>Naive Bayes, worked by hand.</b> 20% of emails are spam. &ldquo;free&rdquo; appears in 60% of spam
+      and 10% of not-spam. &ldquo;winner&rdquo; appears in 50% of spam and 5% of not-spam. Naive Bayes
+      assumes that, once you know whether an email is spam, the two words show up independently of each
+      other.
+    </p>
+  </header>
+
+  <!-- ================================================== controls ====== -->
+  <section class="bench">
+    <div class="card controls" role="group" aria-label="Email and step controls">
+      <div class="ctl-row">
+        <fieldset class="words">
+          <legend>The email contains&hellip;</legend>
+          <label class="word"><input type="checkbox" id="cbFree" checked><span>&ldquo;free&rdquo;</span></label>
+          <label class="word"><input type="checkbox" id="cbWinner" checked><span>&ldquo;winner&rdquo;</span></label>
+        </fieldset>
+        <div class="btn-row">
+          <button type="button" class="btn btn-next" id="btnNext">Next step</button>
+          <button type="button" class="btn btn-quiet" id="btnReset">Start over</button>
+        </div>
+      </div>
+      <ol class="chips">
+        <li id="chip1"><span class="chip-k">Step 1</span><span class="chip-t">Multiply evidence</span></li>
+        <li id="chip2"><span class="chip-k">Step 2</span><span class="chip-t">Add votes</span></li>
+        <li id="chip3"><span class="chip-k">Step 3</span><span class="chip-t">Predict</span></li>
+      </ol>
+      <p class="phase-head" id="caption" aria-live="polite"></p>
+    </div>
+
+    <!-- ---------------------------------------------- step 1 -->
+    <article class="card panel" id="panel1">
+      <div class="panel-head">
+        <h2><span class="vnum">1</span> Multiply evidence</h2>
+        <p class="panel-sub">Start with the odds of spam, then let each word multiply them.</p>
+      </div>
+
+      <div class="chain" id="chain">
+        <div class="tile tile-prior" id="tPrior">
+          <span class="tile-k">Starting odds</span>
+          <span class="tile-v num" id="tPriorV">0.25</span>
+          <span class="tile-d">1 spam for every 4 not-spam</span>
+        </div>
+        <span class="op num" id="op1">&times;</span>
+        <div class="tile" id="tFree">
+          <span class="tile-k" id="tFreeK">contains &ldquo;free&rdquo;</span>
+          <span class="tile-v num" id="tFreeV">&times;6</span>
+          <span class="tile-d" id="tFreeD"></span>
+        </div>
+        <span class="op num" id="op2">&times;</span>
+        <div class="tile" id="tWinner">
+          <span class="tile-k" id="tWinnerK">contains &ldquo;winner&rdquo;</span>
+          <span class="tile-v num" id="tWinnerV">&times;10</span>
+          <span class="tile-d" id="tWinnerD"></span>
+        </div>
+        <span class="op num" id="op3">=</span>
+        <div class="tile tile-total" id="tOdds">
+          <span class="tile-k">Final odds</span>
+          <span class="tile-v num" id="tOddsV">15</span>
+          <span class="tile-d" id="tOddsD"></span>
+        </div>
+      </div>
+
+      <div class="balance" aria-hidden="true">
+        <div class="bal-bar"><div class="bal-spam" id="balSpam"></div><div class="bal-ham"></div></div>
+        <div class="bal-l"><span><i class="sw sw-spam"></i>spam</span><span id="balText" class="num"></span><span>not spam<i class="sw sw-ham"></i></span></div>
+      </div>
+
+      <p class="hint">
+        <b>Odds</b> compare spam to not-spam. Odds of 0.25 mean 1 spam for every 4 not-spam.
+        A word&rsquo;s <b>multiplier</b> is how much more often it turns up in spam than in not-spam.
+        A missing word is evidence too, so its multiplier uses the chance the word is <i>absent</i>,
+        1&nbsp;&minus;&nbsp;p.
+      </p>
+    </article>
+
+    <!-- ---------------------------------------------- step 2 -->
+    <article class="card panel" id="panel2">
+      <div class="panel-head">
+        <h2><span class="vnum">2</span> Add votes</h2>
+        <p class="panel-sub">The same calculation, after taking the log. Multiplying becomes adding.</p>
+      </div>
+
+      <div class="votes" id="votes">
+        <div class="v-axis"><span>&larr; votes for not spam</span><span>votes for spam &rarr;</span></div>
+        <div class="v-row" id="vPrior">
+          <span class="v-name">Starting odds<small class="num" id="vPriorS">log 0.25</small></span>
+          <div class="v-track"><div class="v-bar" id="vPriorB"></div></div>
+          <span class="v-val num" id="vPriorV"></span>
+        </div>
+        <div class="v-row" id="vFree">
+          <span class="v-name" id="vFreeN">&ldquo;free&rdquo;<small class="num" id="vFreeS"></small></span>
+          <div class="v-track"><div class="v-bar" id="vFreeB"></div></div>
+          <span class="v-val num" id="vFreeV"></span>
+        </div>
+        <div class="v-row" id="vWinner">
+          <span class="v-name" id="vWinnerN">&ldquo;winner&rdquo;<small class="num" id="vWinnerS"></small></span>
+          <div class="v-track"><div class="v-bar" id="vWinnerB"></div></div>
+          <span class="v-val num" id="vWinnerV"></span>
+        </div>
+        <div class="v-row v-total" id="vTotal">
+          <span class="v-name"><span><span id="vTotalL">Total</span>, <b class="num">z</b></span><small>sum of the votes</small></span>
+          <div class="v-track"><div class="v-bar" id="vTotalB"></div></div>
+          <span class="v-val num" id="vTotalV"></span>
+        </div>
+      </div>
+
+      <p class="hint">
+        <b>log</b> turns a multiplier into a vote: a multiplier above 1 gives a positive vote for spam,
+        and one below 1 gives a negative vote for not spam. <b>z</b> is the total of the votes, the log of
+        the final odds from step 1.
+      </p>
+    </article>
+
+    <!-- ---------------------------------------------- step 3 -->
+    <article class="card panel" id="panel3">
+      <div class="panel-head">
+        <h2><span class="vnum">3</span> Predict</h2>
+        <p class="panel-sub">Squash the total z into a probability between 0 and 1.</p>
+      </div>
+
+      <div class="predict">
+        <svg id="plotSig" class="plot" viewBox="0 0 560 300" role="img"
+             aria-label="The S-shaped curve P(spam) = 1 over 1 plus e to the minus z, with the current total vote z marked on it."></svg>
+
+        <div class="routes">
+          <div class="route">
+            <span class="route-k">From step 1 &middot; the odds</span>
+            <p class="route-eq num" id="routeA"></p>
+          </div>
+          <div class="route">
+            <span class="route-k">From step 2 &middot; the votes</span>
+            <p class="route-eq num" id="routeB"></p>
+          </div>
+          <div class="verdict" id="verdict"></div>
+        </div>
+      </div>
+
+      <p class="hint">
+        <b>P(spam)</b> is the probability the email is spam. <b>e</b> &asymp; 2.718 undoes the log, so
+        1&nbsp;/&nbsp;(1&nbsp;+&nbsp;e<sup>&minus;z</sup>) turns votes back into odds, and odds into a
+        probability. A total of z&nbsp;=&nbsp;0 means a 50/50 call.
+      </p>
+    </article>
+  </section>
+
+  <!-- ==================================================== below ======= -->
+  <section class="trio">
+
+    <div class="card">
+      <h2>Naive Bayes learns the clues, then derives the votes</h2>
+      <p class="card-sub">
+        From labelled emails it counts the share of spam with &ldquo;free&rdquo;, the share of not-spam with
+        &ldquo;free&rdquo;, and so on. These are <b>feature probabilities within each class</b>. The votes are
+        then <i>calculated</i> from those counts, as in steps 1 and 2.
+      </p>
+      <p class="card-sub">Collected into one line, the votes above read</p>
+      <div class="derive num derive-key"><p id="nbLine"></p></div>
+      <p class="card-sub">
+        The first number holds the starting vote plus the votes for both words being absent. Each word&rsquo;s
+        weight is how much its vote changes when the word appears.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Logistic regression learns the votes directly</h2>
+      <p class="card-sub">It uses the same form,</p>
+      <div class="derive num derive-key"><p>z = w<sub>0</sub> + w<sub>free</sub>&middot;[free] + w<sub>winner</sub>&middot;[winner]</p></div>
+      <p class="card-sub">
+        but never estimates how often a word appears in each class. It tunes the weights
+        <b>w</b> until the predicted P(spam) fits the labels on the training emails as well as possible.
+      </p>
+      <p class="card-sub">
+        It makes <b>no independence assumption</b>. If two words tend to appear together, it can learn
+        smaller weights so the same clue is not counted twice.
+      </p>
+      <dl class="gloss">
+        <div><dt class="num">w<sub>0</sub></dt><dd>The baseline vote, before looking at any word.</dd></div>
+        <div><dt class="num">w<sub>free</sub>, w<sub>winner</sub></dt><dd>The vote each word adds when it appears.</dd></div>
+        <div><dt class="num">[free]</dt><dd>1 if the email contains &ldquo;free&rdquo;, 0 if not.</dd></div>
+      </dl>
+    </div>
+
+    <div class="card">
+      <h2>Same form, different weights</h2>
+      <p class="card-sub">
+        Take 1,000 emails that match every percentage above, except that <b>every email with
+        &ldquo;winner&rdquo; also has &ldquo;free&rdquo;</b>. Naive Bayes only looks at the
+        percentages, so it learns exactly the votes on this page. Logistic regression, trained on the same emails:
+      </p>
+      <table class="cmp" id="cmpTable">
+        <thead><tr><th></th><th>Naive Bayes</th><th>Logistic reg.</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="card-sub" id="cmpNote"></p>
+      <p class="card-sub">
+        Matching forms do not guarantee matching weights. When the words really are independent within each
+        class and there is plenty of data, the two tend to agree. Otherwise they can differ.
+      </p>
+    </div>
+
+  </section>
+
+  <footer class="foot">
+    <p>
+      Murphy, <i>Probabilistic Machine Learning: An Introduction</i>, &sect;9.3 (naive Bayes classifiers),
+      &sect;9.4 (generative vs. discriminative classifiers), &sect;10.2 (binary logistic regression). Logs are
+      natural logs. Every number is computed on the page. The logistic regression weights in the last card come
+      from fitting it by Newton&rsquo;s method to the 1,000-email table, not from a formula.
+    </p>
+  </footer>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
