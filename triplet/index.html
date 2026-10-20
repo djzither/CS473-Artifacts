@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Close Together, Far Apart</title>
+<meta name="description" content="Contrastive loss and triplet loss for beginners: drag dots that stand for pictures of people, watch the penalty, and see why one method checks pairs against a fixed ruler while the other only compares.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ==================================================== masthead ==== -->
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 8 &middot; Murphy &sect;16.2</p>
+    <h1>Close Together, Far Apart</h1>
+    <p class="lede">
+      A computer can learn to tell faces apart by turning each picture into a <strong>dot on a map</strong>.
+      Here, every dot is one picture of a person. Same color means same person.
+    </p>
+    <p class="goal">
+      We want pictures of the <span class="c1">same person</span> close together, and pictures of
+      <span class="c2">different people</span> farther apart.
+    </p>
+    <p class="scope">
+      A <b>penalty</b> is a score for how wrong the map is. Zero means the goal is met. While learning, the
+      computer keeps nudging dots to make the penalty smaller. Below are two ways to score the map.
+    </p>
+  </header>
+
+  <!-- ============================================ view 1 · pairs ====== -->
+  <article class="card panel">
+    <div class="panel-head">
+      <h2><span class="vnum">1</span> Comparing two pictures</h2>
+      <p class="panel-sub">Called <b>contrastive loss</b>. Look at one pair and check it against a fixed ruler.</p>
+    </div>
+
+    <div class="toggle" role="group" aria-label="Are these two pictures of the same person?">
+      <span class="toggle-q">These two pictures show&hellip;</span>
+      <button type="button" class="seg seg-same" id="btnSame" aria-pressed="true">the same person</button>
+      <button type="button" class="seg seg-diff" id="btnDiff" aria-pressed="false">different people</button>
+    </div>
+
+    <div class="stage">
+      <svg id="board1" class="board" viewBox="0 0 600 380" role="group"
+           aria-label="Two draggable dots. Arrows show which way the penalty pushes them."></svg>
+
+      <aside class="readout">
+        <div class="status" id="status1">
+          <span class="status-k">Penalty</span>
+          <span class="status-v num" id="pen1">0</span>
+          <div class="meter"><div class="meter-fill" id="meter1"></div></div>
+        </div>
+        <p class="msg" id="msg1" aria-live="polite"></p>
+        <p class="fact">Distance apart: <b class="num" id="dist1">0</b> steps</p>
+        <p class="fact" id="rule1"></p>
+        <button type="button" class="btn btn-quiet" id="reset1">Reset dots</button>
+      </aside>
+    </div>
+
+    <p class="hint">
+      Drag either dot. Keyboard: tab to a dot and use the arrow keys. The <b>arrows</b> show which way the
+      penalty pushes each dot.
+    </p>
+
+    <details class="math">
+      <summary>Show the math</summary>
+      <div class="math-body">
+        <p>Let <i>d</i> be the distance between the two dots, and <i>m</i> = 3 the size of the circle (the
+          <b>margin</b>).</p>
+        <p class="eq num">same person: &nbsp; penalty = d&sup2;</p>
+        <p class="eq num">different people: &nbsp; penalty = max(0, m &minus; d)&sup2;</p>
+        <p><b>max(0, &hellip;)</b> means &ldquo;if this comes out negative, use 0 instead.&rdquo; So once
+          different people are at least <i>m</i> apart, they cost nothing.</p>
+        <p>Training adds this up over many pairs of pictures and moves the dots, a little at a time, to make
+          the total smaller.</p>
+      </div>
+    </details>
+  </article>
+
+  <!-- ========================================== view 2 · triplets ===== -->
+  <article class="card panel">
+    <div class="panel-head">
+      <h2><span class="vnum">2</span> Comparing three pictures</h2>
+      <p class="panel-sub">Called <b>triplet loss</b>. No fixed ruler, just a comparison.</p>
+    </div>
+
+    <p class="goal goal-sm">
+      Your other picture should be closer to you than the stranger&rsquo;s picture, with a little extra room.
+    </p>
+
+    <div class="stage">
+      <svg id="board2" class="board" viewBox="0 0 600 380" role="group"
+           aria-label="Three draggable dots: You, Another picture of you, and Someone else. Lines connect You to the other two."></svg>
+
+      <aside class="readout">
+        <div class="status" id="status2">
+          <span class="status-k">Penalty</span>
+          <span class="status-v num" id="pen2">0</span>
+          <div class="meter"><div class="meter-fill" id="meter2"></div></div>
+        </div>
+        <p class="msg" id="msg2" aria-live="polite"></p>
+        <table class="dists">
+          <tr><td><i class="sw sw-1"></i>You &rarr; your other picture</td><td class="num" id="dP"></td></tr>
+          <tr><td><i class="sw sw-2"></i>You &rarr; someone else</td><td class="num" id="dN"></td></tr>
+          <tr class="need"><td>Someone else needs at least</td><td class="num" id="dNeed"></td></tr>
+        </table>
+        <div class="btn-row">
+          <button type="button" class="btn btn-next" id="step2">Take a learning step</button>
+          <button type="button" class="btn btn-quiet" id="reset2">Reset dots</button>
+        </div>
+        <p class="fact num" id="stepCount" aria-live="polite"></p>
+      </aside>
+    </div>
+
+    <p class="hint">
+      The <b>solid circle</b> passes through your other picture. The <b>dashed circle</b> is one step
+      bigger: that gap is the extra room. The stranger needs to be outside the dashed circle.
+      <b>Take a learning step</b> moves all three dots a little, the way a computer does while learning.
+    </p>
+
+    <details class="math">
+      <summary>Show the math</summary>
+      <div class="math-body">
+        <p>Call the three pictures <i>a</i> (you), <i>p</i> (another picture of you) and <i>n</i> (someone
+          else). Let <i>m</i> = 1 be the extra room (the <b>margin</b>).</p>
+        <p class="eq num">penalty = max(0, d(a, p) + m &minus; d(a, n))</p>
+        <p>The penalty is zero when d(a, n) &ge; d(a, p) + m: the stranger is at least <i>m</i> farther away
+          than your other picture.</p>
+        <p>A learning step moves each dot a small amount in the direction that lowers the penalty fastest
+          (<b>gradient descent</b>). <i>p</i> moves toward <i>a</i>, <i>n</i> moves away from <i>a</i>, and
+          <i>a</i> does a bit of both. Some versions square the distances. The idea is the same.</p>
+      </div>
+    </details>
+  </article>
+
+  <!-- ================================================= compare ======== -->
+  <section class="card compare">
+    <h2>Why both work, and how they differ</h2>
+    <div class="cmp-grid">
+      <div class="cmp-col">
+        <h3><span class="vnum">1</span> Two pictures</h3>
+        <ul>
+          <li>Uses a <b>fixed ruler</b>. Same person: as close as possible. Different people: at least 3 steps
+            apart.</li>
+          <li>The same-person penalty only reaches zero when the dots touch. It keeps pulling.</li>
+          <li>Each pair is judged on its own.</li>
+        </ul>
+      </div>
+      <div class="cmp-col">
+        <h3><span class="vnum">2</span> Three pictures</h3>
+        <ul>
+          <li>Uses a <b>comparison</b>. Your other picture just has to beat the stranger by the extra room.</li>
+          <li>Your two pictures don&rsquo;t have to touch. Once the stranger is far enough, the penalty is zero
+            and nothing moves.</li>
+          <li>It never asks &ldquo;close enough?&rdquo; It only asks &ldquo;closer, and by enough?&rdquo;
+            Slide all three dots somewhere else together and nothing changes.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="card-sub">
+      <b>Both work for the same reason:</b> every penalty pulls matching pictures together and pushes
+      non-matching ones apart, until the rule is met. Do that for thousands of pictures, and each
+      person&rsquo;s pictures end up in their own neighborhood on the map.
+    </p>
+  </section>
+
+  <footer class="foot">
+    <p>
+      Murphy, <i>Probabilistic Machine Learning: An Introduction</i>, &sect;16.2 (learning distance metrics:
+      ranking losses, pairwise contrastive and triplet loss). Distances are straight-line distances in grid
+      steps. Every number is computed on the page. A real system would use thousands of pictures and a
+      learned map in many dimensions, not two.
+    </p>
+  </footer>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

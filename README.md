@@ -15,6 +15,7 @@ the deployed site on GitHub Pages.
 | ✅ | [`mi/`](mi/) — **Copies of Copies** | Murphy §6.3: mutual information, conditional MI and the chain rule, the data processing inequality |
 | ✅ | [`em/`](em/) — **Touch, Then Climb** | Murphy §8.7.2–8.7.3: EM for a GMM, the lower bound (ELBO), the KL gap, why the true score never decreases |
 | ✅ | [`nb/`](nb/) — **Same Votes, Different Teachers** | Murphy §9.3–9.4, §10.2: naive Bayes as multiplied odds and added log votes, the shared logistic form, why matching forms don't mean matching weights |
+| ✅ | [`triplet/`](triplet/) — **Close Together, Far Apart** | Murphy §16.2: contrastive and triplet loss for beginners, same person close and different people apart, a fixed ruler vs. a comparison, gradient steps on draggable dots |
 | ☐ | Uncorrelated ≠ independent | ρ ≈ 0 for a Gaussian blob vs. Y = X², side by side |
 | ☐ | Simpson's paradox | Iris sepal data with a "merge species" toggle |
 | ☐ | Mahalanobis vs. Euclidean | drop a test point, compare both distances |
