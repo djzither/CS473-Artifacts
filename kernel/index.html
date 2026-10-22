@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Closer Counts More</title>
+<meta name="description" content="Gaussian kernel regression for beginners: predict a new student's exam score from four classmates, where students who studied about as long as you count the most.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ==================================================== masthead ==== -->
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 9 &middot; Murphy &sect;16.3</p>
+    <h1>Closer Counts More</h1>
+    <p class="lede">
+      Four students told us how many <strong>hours they studied</strong> and what they <strong>scored</strong>.
+      A new student wants to guess their own score. One way is to ask the four students, but
+      give each one a different amount of say.
+    </p>
+    <p class="goal">
+      Students who studied about <span class="c1">as long as you</span> count the most.
+    </p>
+    <p class="scope">
+      The guess is a <b>weighted average</b> of the four scores. Each student gets a <b>weight</b>, a share of
+      the say, and the shares always add up to 100%. Closer study time means a bigger share.
+    </p>
+  </header>
+
+  <!-- ============================================= the graph ========== -->
+  <article class="card panel">
+    <div class="panel-head">
+      <h2><span class="vnum">1</span> Predict my exam score</h2>
+      <p class="panel-sub">Called <b>kernel regression</b>. Drag the line to your study time.</p>
+    </div>
+
+    <div class="stage">
+      <svg id="chart" class="board" viewBox="0 0 600 420" role="group"
+           aria-label="Hours studied against exam score for four students. A draggable vertical line sets your study time. Bigger, brighter dots count more toward the predicted score."></svg>
+
+      <aside class="readout">
+        <div class="status">
+          <span class="status-k">Predicted score</span>
+          <span class="status-v num" id="yhat">0</span>
+          <span class="status-sub" id="xread"></span>
+        </div>
+
+        <div class="avg-row" id="avgRow" hidden>
+          <span><i class="sw sw-avg"></i>Plain average of all four</span>
+          <b class="num" id="avgVal"></b>
+          <span class="avg-diff" id="avgDiff"></span>
+        </div>
+
+        <p class="msg" id="msg" aria-live="polite"></p>
+
+        <div class="slider">
+          <label for="hSlider">
+            <span>Neighborhood size <i>h</i></span>
+            <b class="num" id="hVal"></b>
+          </label>
+          <input type="range" id="hSlider" min="0" max="100" step="any">
+          <div class="slider-ends"><span>only close students</span><span>everyone</span></div>
+        </div>
+
+        <table class="contrib" id="contrib">
+          <thead><tr><th>Studied</th><th>Score</th><th>Counts for</th></tr></thead>
+          <tbody></tbody>
+        </table>
+
+        <div class="btn-row">
+          <button type="button" class="btn btn-next" id="walk">Walk from 4 to 9 hours</button>
+          <button type="button" class="btn btn-quiet" id="reset">Reset</button>
+        </div>
+        <div class="btn-row">
+          <button type="button" class="chip" id="cmpBtn" aria-pressed="false">Compare with plain average</button>
+          <button type="button" class="chip" id="curveBtn" aria-pressed="false">Show every prediction</button>
+        </div>
+      </aside>
+    </div>
+
+    <p class="hint">
+      Drag anywhere on the graph to move the line. Keyboard: tab to the line and use the arrow keys.
+      The <b>shaded bump</b> shows who counts: students under its peak count most. The
+      <b class="c2">orange dot</b> is the prediction.
+    </p>
+
+    <details class="math">
+      <summary>Show the math</summary>
+      <div class="math-body">
+        <p>You studied <i>x</i> hours. Student <i>n</i> studied <i>x<sub>n</sub></i> hours and scored
+          <i>y<sub>n</sub></i>. First give each student a raw score that is 1 when they studied exactly as long
+          as you, and shrinks the farther away they are (a bell curve, or <b>Gaussian kernel</b>):</p>
+        <p class="eq num">raw<sub>n</sub> = e<sup>&minus;(x &minus; x<sub>n</sub>)&sup2; / (2h&sup2;)</sup></p>
+        <p>Then divide by the total so the shares add up to 100%:</p>
+        <p class="eq num">w<sub>n</sub> = raw<sub>n</sub> / (raw<sub>1</sub> + raw<sub>2</sub> + raw<sub>3</sub> + raw<sub>4</sub>)</p>
+        <p class="eq num">predicted score = w<sub>1</sub>y<sub>1</sub> + w<sub>2</sub>y<sub>2</sub> + w<sub>3</sub>y<sub>3</sub> + w<sub>4</sub>y<sub>4</sub></p>
+        <p><i>h</i> is the <b>bandwidth</b>: how wide the bell is, in hours. Because the weights are shares of
+          100%, the prediction is always between the lowest score (50) and the highest (98).</p>
+      </div>
+    </details>
+  </article>
+
+  <!-- ================================================= compare ======== -->
+  <section class="card compare">
+    <h2>What the slider does</h2>
+    <div class="cmp-grid">
+      <div class="cmp-col">
+        <h3>Small <i>h</i></h3>
+        <ul>
+          <li>A narrow bell. Only students who studied almost exactly as long as you count.</li>
+          <li>The prediction copies the closest student, and jumps when a different student becomes closest.</li>
+        </ul>
+      </div>
+      <div class="cmp-col">
+        <h3>Large <i>h</i></h3>
+        <ul>
+          <li>A wide bell. Students far away count almost as much as close ones.</li>
+          <li>Every student gets about 25%, so the prediction becomes the plain average, <b>77</b>, no matter
+            how long you studied.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="card-sub">
+      <b>In between is the useful part:</b> close students matter most, and farther ones still help a little.
+      Turn on <b>Show every prediction</b> and move the slider to see the whole curve go from jumpy to flat.
+    </p>
+  </section>
+
+  <footer class="foot">
+    <p>
+      Murphy, <i>Probabilistic Machine Learning: An Introduction</i>, &sect;16.3 (kernel density estimation
+      and kernel regression, also called the Nadaraya&ndash;Watson model). Every number is computed on the page
+      from the four students shown. A real model would use many more students, and <i>h</i> would be chosen
+      by checking predictions on students it hasn&rsquo;t seen.
+    </p>
+  </footer>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
