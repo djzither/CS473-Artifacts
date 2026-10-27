@@ -17,6 +17,7 @@ the deployed site on GitHub Pages.
 | ✅ | [`nb/`](nb/) — **Same Votes, Different Teachers** | Murphy §9.3–9.4, §10.2: naive Bayes as multiplied odds and added log votes, the shared logistic form, why matching forms don't mean matching weights |
 | ✅ | [`triplet/`](triplet/) — **Close Together, Far Apart** | Murphy §16.2: contrastive and triplet loss for beginners, same person close and different people apart, a fixed ruler vs. a comparison, gradient steps on draggable dots |
 | ✅ | [`kernel/`](kernel/) — **Closer Counts More** | Murphy §16.3: Gaussian kernel regression for beginners, weights that shrink with distance, a draggable study-time line, the bandwidth h from copy-the-nearest to plain average |
+| ✅ | [`gp/`](gp/) — **Many Functions, Then Fewer** | Murphy §17.2: Gaussian process regression, a prior over functions becoming a posterior one point at a time, noise-free vs. noisy observations, the length scale, joint posterior samples |
 | ☐ | Uncorrelated ≠ independent | ρ ≈ 0 for a Gaussian blob vs. Y = X², side by side |
 | ☐ | Simpson's paradox | Iris sepal data with a "merge species" toggle |
 | ☐ | Mahalanobis vs. Euclidean | drop a test point, compare both distances |

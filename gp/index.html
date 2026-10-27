@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Many Functions, Then Fewer</title>
+<meta name="description" content="Gaussian process regression: watch a prior over functions become a posterior as observations arrive one at a time.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <!-- ==================================================== masthead ==== -->
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 10 &middot; Murphy &sect;17.2</p>
+    <h1>Many Functions, Then Fewer</h1>
+    <p class="lede">
+      A Gaussian process doesn&rsquo;t fit one curve. It puts a <strong>probability distribution over whole
+      functions</strong>. Before any data it allows a wide spread of smooth functions. Each observation rules
+      out the ones that don&rsquo;t pass near it.
+    </p>
+    <p class="goal">
+      Watch the <span class="c1">prior</span> over functions become a <span class="c1">posterior</span>,
+      one observation at a time.
+    </p>
+    <p class="scope">
+      Somewhere there is a <b>hidden true function</b>, here sin(<i>x</i>). The GP never sees it, only the
+      <b class="c2">observed points</b>. Everything drawn is about the function <i>f</i>(<i>x</i>) itself,
+      not about new noisy readings of it.
+    </p>
+  </header>
+
+  <!-- ============================================= the graph ========== -->
+  <article class="card panel">
+    <div class="panel-head">
+      <h2><span class="vnum">1</span> From prior to posterior</h2>
+      <p class="panel-sub">Add the preset points one at a time, or <b>click the graph</b> to add your own.</p>
+    </div>
+
+    <div class="stage">
+      <div class="chart-col">
+        <svg id="chart" class="board" viewBox="0 0 640 400" role="img"
+             aria-label="GP prior with no observations."></svg>
+
+        <ul class="legend">
+          <li><i class="key key-mean"></i>Posterior mean</li>
+          <li><i class="key key-band"></i>Mean &plusmn; 2 standard deviations</li>
+          <li id="legendSamples"><i class="key key-sample"></i><span><b>Possible functions</b>: whole functions drawn from the GP, not separate predictions</span></li>
+          <li><i class="key key-obs"></i>Observations</li>
+          <li id="legendTrue" hidden><i class="key key-true"></i><span>Hidden true function, sin(<i>x</i>)</span></li>
+        </ul>
+      </div>
+
+      <aside class="readout">
+        <div class="status">
+          <span class="status-k" id="phase">Prior</span>
+          <span class="status-sub"><span id="count">0 observations</span></span>
+          <span class="status-sub">average band width <b class="num" id="bandW">4.00</b></span>
+        </div>
+
+        <div class="btn-row">
+          <button type="button" class="btn btn-next" id="add">Add next observation <span class="btn-sub" id="addCount"></span></button>
+          <button type="button" class="btn" id="back">Back</button>
+          <button type="button" class="btn btn-quiet" id="reset">Reset</button>
+        </div>
+
+        <div class="explain">
+          <div aria-live="polite">
+            <p class="explain-lead" id="lead"></p>
+            <p id="noiseNote"></p>
+            <p class="event" id="eventNote" hidden></p>
+          </div>
+          <ul class="caveats">
+            <li>The shaded band is <b>pointwise</b> mean &plusmn; 2 standard deviations: at each <i>x</i> on its own,
+              <i>f</i>(<i>x</i>) lands inside with about 95% probability. It is not a guarantee that a whole
+              function stays inside it, and possible functions do poke out.</li>
+            <li id="moreData" hidden>For fixed &ell; and &sigma;, more data never widen the band. But the
+              mean does not necessarily get more accurate at every location after each observation.</li>
+          </ul>
+        </div>
+
+        <fieldset class="mode">
+          <legend>When you click the graph, the new point&rsquo;s <i>y</i> is&hellip;</legend>
+          <label><input type="radio" name="mode" value="click" checked> the height you clicked</label>
+          <label><input type="radio" name="mode" value="truth"> <span>the hidden function at that <i>x</i>, plus noise</span></label>
+          <p class="mode-note" id="modeNote"></p>
+        </fieldset>
+      </aside>
+    </div>
+
+    <details class="math">
+      <summary>Math</summary>
+      <div class="math-body">
+        <p>The prior mean is <b>0</b> and the prior covariance is the RBF kernel. Observations are
+          <i>y</i> = <i>f</i>(<i>x</i>) + &epsilon;, with &epsilon; ~ N(0, &sigma;&sup2;).</p>
+        <p class="eq num">K(x, x&prime;) = exp(&minus;(x &minus; x&prime;)&sup2; / (2&ell;&sup2;))</p>
+        <p class="eq num">posterior mean = k<sub>*</sub><sup>T</sup>(K + &sigma;&sup2;I)<sup>&minus;1</sup>y</p>
+        <p class="eq num">posterior covariance = K<sub>**</sub> &minus; K<sub>*</sub><sup>T</sup>(K + &sigma;&sup2;I)<sup>&minus;1</sup>K<sub>*</sub></p>
+        <dl class="defs">
+          <dt>x<sub>1</sub>, &hellip;, x<sub>N</sub></dt><dd>the inputs you have observed (the dots&rsquo; horizontal positions).</dd>
+          <dt>y</dt><dd>the list of observed values, one per dot.</dd>
+          <dt>K</dt><dd>the N &times; N training Gram matrix: how strongly the kernel says each pair of observed inputs is related.</dd>
+          <dt>&sigma;&sup2;I</dt><dd>observation noise variance on the diagonal. With &sigma; = 0 the model trusts every <i>y</i> exactly.</dd>
+          <dt>k<sub>*</sub>, K<sub>*</sub></dt><dd>kernel values between the observed inputs and the inputs being predicted: a column for one test point, a matrix for the whole plotted grid.</dd>
+          <dt>K<sub>**</sub></dt><dd>kernel values among the test inputs themselves: the prior covariance before any data.</dd>
+          <dt>&ell;</dt><dd>the length scale: roughly how far apart two inputs can be and still say a lot about each other.</dd>
+        </dl>
+        <p>The mean line is the first formula at 201 points across the axis. The band is mean &plusmn; 2 &times; the
+          square root of the diagonal of the second. A possible function is mean + L<i>z</i>, where L L<sup>T</sup> is the whole
+          posterior covariance and <i>z</i> is a list of independent standard normals, so neighboring points in one sample
+          move together.</p>
+        <p>Nothing is inverted directly. The page factors K + &sigma;&sup2;I = L L<sup>T</sup> (Cholesky) and solves two
+          triangular systems. It always adds a jitter of 10<sup>&minus;8</sup> to the diagonal, and more if needed, so a
+          repeated input (two identical rows in K) still factors. That jitter is why &ldquo;zero&rdquo; uncertainty at a
+          noise-free point is really about 10<sup>&minus;4</sup>.</p>
+      </div>
+    </details>
+  </article>
+
+  <!-- =========================================== settings ============ -->
+  <section class="card settings">
+    <h2>Model settings</h2>
+    <div class="set-grid">
+      <div class="slider">
+        <label for="ellSlider"><span>Length scale</span><b class="num" id="ellVal"></b></label>
+        <input type="range" id="ellSlider" min="0" max="100" step="any">
+        <div class="slider-ends"><span>wiggly</span><span>smooth</span></div>
+        <p class="set-note">How far one observation&rsquo;s influence reaches. Small &ell;: functions change quickly and the
+          band reopens soon after each point. Large &ell;: slowly varying functions, and one point informs a wide stretch.
+          <span id="ellNote"></span></p>
+      </div>
+
+      <div class="slider">
+        <label for="sigmaSlider"><span>Observation noise</span><b class="num" id="sigmaVal"></b></label>
+        <input type="range" id="sigmaSlider" min="0" max="1" step="0.05">
+        <div class="slider-ends"><span>noise-free</span><span>&sigma; = 1</span></div>
+        <p class="set-note">How far a <i>y</i> may sit from <i>f</i>(<i>x</i>). It changes how the model reads all the
+          points, and sets the noise on preset and sampled points added from now on. The band never includes it: it
+          shows uncertainty about <i>f</i>, not about the next reading.</p>
+      </div>
+
+      <div class="slider">
+        <label for="countSlider"><span>Possible functions shown</span><b class="num" id="countVal"></b></label>
+        <input type="range" id="countSlider" min="1" max="10" step="1">
+        <div class="btn-row">
+          <button type="button" class="chip" id="samplesBtn" aria-pressed="true">Show possible functions</button>
+          <button type="button" class="chip" id="trueBtn" aria-pressed="false">Show true function</button>
+          <button type="button" class="btn btn-quiet" id="redraw">Redraw possible functions</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================= try ========= -->
+  <section class="card compare">
+    <h2>Things to try</h2>
+    <div class="cmp-grid">
+      <div class="cmp-col">
+        <h3>Pinch the band</h3>
+        <ul>
+          <li>Add three preset points. With noise-free, the mean goes through each one and the band shrinks to a point there.</li>
+          <li>Notice the band stays narrow <b>near</b> a point too, not only on it. Inputs within about &ell; are strongly related.</li>
+        </ul>
+      </div>
+      <div class="cmp-col">
+        <h3>Loosen with noise</h3>
+        <ul>
+          <li>Now drag the noise up to 0.3. The mean stops threading every dot, and the band at each dot opens up.</li>
+          <li>The model now believes each dot is f plus a random nudge, so it won&rsquo;t chase any single one.</li>
+        </ul>
+      </div>
+      <div class="cmp-col">
+        <h3>Repeat an input</h3>
+        <ul>
+          <li>In &ldquo;height you clicked&rdquo; mode, click twice at the same <i>x</i>, once high and once low.</li>
+          <li>Noise-free, the mean settles on their average. Add noise and the two become two readings of one <i>f</i>(<i>x</i>).</li>
+        </ul>
+      </div>
+      <div class="cmp-col">
+        <h3>Change the ruler</h3>
+        <ul>
+          <li>With a few points, slide &ell; to 0.2: possible functions turn wiggly and the band reopens between points.</li>
+          <li>Slide to 3: the functions become nearly straight over the gaps and the band stays tight much farther out.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>
+      Murphy, <i>Probabilistic Machine Learning: An Introduction</i>, &sect;17.2 (Gaussian processes, GP regression
+      with noise-free and noisy observations). Zero prior mean, RBF kernel with unit signal variance, hyperparameters set
+      by hand rather than fit to the data. Every curve is computed on the page.
+    </p>
+  </footer>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
