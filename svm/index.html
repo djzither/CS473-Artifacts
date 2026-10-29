@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Widest Corridor</title>
+<meta name="description" content="Support vector machines as a Rebel sensor mission: scores, margins, support vectors, kernels and soft margins, with a real solver running on the page.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Ship icons, shared by every plot. Shape as well as color tells the sides apart. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="ico-rebel" viewBox="-11 -11 22 22">
+      <path d="M-8,-8 L8,8 M8,-8 L-8,8" class="ico-stroke" stroke-width="3.2" stroke-linecap="round"/>
+      <path d="M0,-9 L0,9" class="ico-stroke" stroke-width="2" stroke-linecap="round"/>
+      <circle r="2.8" class="ico-fill"/>
+    </symbol>
+    <symbol id="ico-imperial" viewBox="-11 -11 22 22">
+      <rect x="-10" y="-9" width="3.4" height="18" rx="1" class="ico-fill"/>
+      <rect x="6.6" y="-9" width="3.4" height="18" rx="1" class="ico-fill"/>
+      <path d="M-7,0 L7,0" class="ico-stroke" stroke-width="2.4"/>
+      <circle r="4.2" class="ico-fill"/>
+    </symbol>
+    <symbol id="ico-unknown" viewBox="-11 -11 22 22">
+      <path d="M0,-10 L10,0 L0,10 L-10,0 Z" class="ico-fill"/>
+      <text y="4" text-anchor="middle" class="ico-q">?</text>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 11 &middot; Murphy &sect;17.3</p>
+    <h1>The Widest Corridor</h1>
+    <p class="lede">
+      Echo Base has seconds to decide whether an arriving ship is <b class="reb">Rebel</b> or
+      <b class="imp">Imperial</b>. Over nine short scenes, Leia&rsquo;s crew builds a
+      <strong>support vector machine</strong>: a line that separates the two sides with the widest possible safety gap.
+    </p>
+  </header>
+
+  <main class="console" id="console">
+
+    <nav class="progress" aria-label="Scenes">
+      <ol id="progress"></ol>
+    </nav>
+
+    <!-- =================================================== SCENE 1 ===== -->
+    <section class="scene" data-scene="1" data-short="Ships" aria-labelledby="s1h">
+      <header class="scene-head"><span class="vnum">1</span><h2 id="s1h">Ships on the scope</h2></header>
+      <div class="comms">
+        <p><span class="who">LEIA</span>Sensors log two readings for every arriving ship. I need to know friend from Imperial before they reach the shield.</p>
+        <p><span class="who">C-3PO</span>Each ship becomes a point, Your Highness. Engine output runs across, Imperial transponder strength runs up.</p>
+        <p><span class="who">LUKE</span>And the fourteen ships we&rsquo;ve already identified?</p>
+        <p><span class="who">R2-D2</span><span class="beep">[two rising whistles]</span> <span class="who who-in">C-3PO</span>He says they keep their known labels: &minus;1 for Rebel, +1 for Imperial.</p>
+      </div>
+      <div class="stage">
+        <div class="viz">
+          <svg class="board" id="plot1" role="img" aria-label="Fourteen identified ships plotted by engine output and transponder strength."></svg>
+          <ul class="legend" data-keys="rebel imperial"></ul>
+          <p class="hint">Click a ship (or tab to it and press Enter) to read its sensor log.</p>
+          <div class="readout" id="read1" aria-live="polite"></div>
+        </div>
+        <div class="notes">
+          <div class="eq-card">
+            <div class="tex-block" data-tex="\mathbf{x}_n = (x_{n1},\, x_{n2}), \qquad \tilde{y}_n \in \{-1, +1\}"></div>
+            <dl class="defs">
+              <dt><span class="tex" data-tex="n"></span></dt><dd>which identified ship: <span class="tex" data-tex="n = 1, \dots, N"></span>, here <span class="tex" data-tex="N = 14"></span>.</dd>
+              <dt><span class="tex" data-tex="\mathbf{x}_n"></span></dt><dd>ship <i>n</i>&rsquo;s position on the graph: its two readings.</dd>
+              <dt><span class="tex" data-tex="x_{n1}"></span></dt><dd>engine output, in standardized units (see &ldquo;Show why&rdquo;).</dd>
+              <dt><span class="tex" data-tex="x_{n2}"></span></dt><dd>Imperial transponder strength, standardized.</dd>
+              <dt><span class="tex" data-tex="\tilde{y}_n"></span></dt><dd>the known label: <b class="reb">&minus;1 Rebel</b>, <b class="imp">+1 Imperial</b>. The tilde marks the &plusmn;1 coding (instead of 0/1), which makes the later formulas tidy.</dd>
+            </dl>
+          </div>
+          <p class="plain"><b>In plain words.</b> Every dot is a ship whose side we already know. Its position is <span class="tex" data-tex="\mathbf{x}_n"></span>; its label is <span class="tex" data-tex="\tilde{y}_n"></span>. <em>Training</em> means using these fourteen to choose a rule for ships we have never seen.</p>
+          <details class="why">
+            <summary>Show why the axes are standardized</summary>
+            <div class="why-body">
+              <p>Raw engine output runs from about 300 to 1,500 MW; transponder strength from about 6 to 30 dB. An SVM measures <b>distances</b> between ships and a line. In raw units a 100&nbsp;MW gap would count a hundred times more than a 1&nbsp;dB gap, so the &ldquo;widest gap&rdquo; would be measured almost entirely along the engine axis.</p>
+              <p>So each reading is rescaled to &ldquo;how many typical spreads from average&rdquo;:</p>
+              <div class="tex-block" data-tex="x_{n1} = \frac{\text{engine} - 900\ \text{MW}}{300\ \text{MW}}, \qquad x_{n2} = \frac{\text{transponder} - 18\ \text{dB}}{6\ \text{dB}}"></div>
+              <p>Now one unit means the same amount of &ldquo;unusual&rdquo; on both axes, and the plot is drawn with equal scales so distances you see are the distances the SVM uses.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================== SCENE 2 ===== -->
+    <section class="scene" data-scene="2" data-short="Score" aria-labelledby="s2h" hidden>
+      <header class="scene-head"><span class="vnum">2</span><h2 id="s2h">A score for every ship</h2></header>
+      <div class="comms">
+        <p><span class="who">LEIA</span>R2, give every ship one number. Positive means Imperial, negative means Rebel.</p>
+        <p><span class="who">R2-D2</span><span class="beep">[busy chirping]</span> <span class="who who-in">C-3PO</span>He proposes a weighted sum: weigh the engine, weigh the transponder, then add an offset.</p>
+        <p><span class="who">HAN</span>And the sign decides who gets shot at. Got it.</p>
+        <p><span class="who">LUKE</span>So a score of 3 means &ldquo;very probably Imperial&rdquo;?</p>
+        <p><span class="who">C-3PO</span>Certainly not, sir. It is a <em>score</em>, not a probability. It need not lie between 0 and 1, and it is not calibrated.</p>
+      </div>
+      <div class="stage">
+        <div class="viz">
+          <div class="tag tag-hand">Hand-set weights &mdash; nothing trained yet</div>
+          <svg class="board" id="plot2" role="img" aria-label="Ships with a boundary line set by the weight sliders."></svg>
+          <ul class="legend" data-keys="rebel imperial boundary arrow wrong"></ul>
+          <div class="controls">
+            <div class="slider"><label for="w1"><span>Engine weight <span class="tex" data-tex="w_1"></span></span><b class="num" id="w1v"></b></label><input type="range" id="w1" min="-3" max="3" step="0.05"></div>
+            <div class="slider"><label for="w2"><span>Transponder weight <span class="tex" data-tex="w_2"></span></span><b class="num" id="w2v"></b></label><input type="range" id="w2" min="-3" max="3" step="0.05"></div>
+            <div class="slider"><label for="w0"><span>Bias <span class="tex" data-tex="w_0"></span></span><b class="num" id="w0v"></b></label><input type="range" id="w0" min="-3" max="3" step="0.05"></div>
+            <div class="btn-row"><button type="button" class="btn btn-quiet" id="reset2">Reset weights</button></div>
+          </div>
+          <div class="readout" id="read2" aria-live="polite"></div>
+        </div>
+        <div class="notes">
+          <div class="eq-card">
+            <div class="tex-block" data-tex="f(\mathbf{x}) = \mathbf{w}^{\mathsf T}\mathbf{x} + w_0 = w_1 x_1 + w_2 x_2 + w_0"></div>
+            <div class="tex-block" data-tex="\hat{y} = \operatorname{sign}\big(f(\mathbf{x})\big)"></div>
+            <dl class="defs">
+              <dt><span class="tex" data-tex="\mathbf{w} = (w_1, w_2)"></span></dt><dd>weights: how much each reading pushes the score up or down.</dd>
+              <dt><span class="tex" data-tex="\mathbf{w}^{\mathsf T}\mathbf{x}"></span></dt><dd>shorthand for <span class="tex" data-tex="w_1x_1 + w_2x_2"></span> (a dot product).</dd>
+              <dt><span class="tex" data-tex="w_0"></span></dt><dd>bias: a constant added to every score.</dd>
+              <dt><span class="tex" data-tex="f(\mathbf{x})"></span></dt><dd>the score. Any real number.</dd>
+              <dt><span class="tex" data-tex="\hat{y}"></span></dt><dd>the predicted label: +1 if the score is positive, &minus;1 if negative.</dd>
+            </dl>
+          </div>
+          <p class="plain"><b>In plain words.</b> The solid line is every place where the score is exactly 0: the <b>decision boundary</b>. The arrow is <span class="tex" data-tex="\mathbf{w}"></span>; it points toward higher scores and is perpendicular to the line. Changing <span class="tex" data-tex="w_1, w_2"></span> turns the line; changing <span class="tex" data-tex="w_0"></span> slides it without turning.</p>
+          <details class="why">
+            <summary>Show why <span class="tex" data-tex="\mathbf{w}"></span> is perpendicular to the line</summary>
+            <div class="why-body">
+              <p>Take two points <span class="tex" data-tex="\mathbf{a}, \mathbf{b}"></span> on the line. Both score 0, so</p>
+              <div class="tex-block" data-tex="\mathbf{w}^{\mathsf T}\mathbf{a} + w_0 = \mathbf{w}^{\mathsf T}\mathbf{b} + w_0 \;\Rightarrow\; \mathbf{w}^{\mathsf T}(\mathbf{a} - \mathbf{b}) = 0."></div>
+              <p><span class="tex" data-tex="\mathbf{a} - \mathbf{b}"></span> points along the line, and a zero dot product means &ldquo;at right angles.&rdquo; So <span class="tex" data-tex="\mathbf{w}"></span> sticks straight out of the line, toward the side where scores grow.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================== SCENE 3 ===== -->
+    <section class="scene" data-scene="3" data-short="Margin" aria-labelledby="s3h" hidden>
+      <header class="scene-head"><span class="vnum">3</span><h2 id="s3h">Which line?</h2></header>
+      <div class="comms">
+        <p><span class="who">HAN</span>Plenty of lines split them. Pick one and let&rsquo;s go.</p>
+        <p><span class="who">LEIA</span>A line that grazes a ship leaves no room for error. One sensor glitch and we fire on our own.</p>
+        <p><span class="who">LUKE</span>So we want the line whose <em>nearest</em> ship, on either side, is as far away as possible?</p>
+        <p><span class="who">C-3PO</span>Precisely, Master Luke. That distance is called the <b>margin</b>.</p>
+      </div>
+      <div class="stage">
+        <div class="viz">
+          <div class="tag" id="tag3"></div>
+          <svg class="board" id="plot3" role="img" aria-label="Three separating lines and their margins."></svg>
+          <ul class="legend" data-keys="rebel imperial boundary corridor nearest"></ul>
+          <div class="controls">
+            <div class="btn-row" role="group" aria-label="Choose a line">
+              <button type="button" class="chip" data-line="A">Line A</button>
+              <button type="button" class="chip" data-line="B">Line B</button>
+              <button type="button" class="chip" data-line="C">Line C</button>
+            </div>
+          </div>
+          <div class="readout" id="read3" aria-live="polite"></div>
+        </div>
+        <div class="notes">
+          <div class="eq-card">
+            <div class="tex-block" data-tex="\text{margin} = \min_{n}\ \text{distance}\big(\mathbf{x}_n,\ \text{boundary}\big)"></div>
+            <dl class="defs">
+              <dt><span class="tex" data-tex="\min_n"></span></dt><dd>&ldquo;the smallest over all ships&rdquo;: only the nearest ship counts.</dd>
+              <dt>corridor</dt><dd>the empty band of half-width = margin on each side of the line.</dd>
+            </dl>
+          </div>
+          <p class="plain"><b>In plain words.</b> All three lines classify every known ship correctly, so accuracy can&rsquo;t choose between them. The margin can: line C leaves the widest empty corridor. A ship whose readings wobble a little is still on the right side.</p>
+          <details class="why">
+            <summary>Show why a wide gap helps</summary>
+            <div class="why-body">
+              <p>New ships are not copies of the old ones; their readings differ a bit. If a line passes within 0.27 units of a known Rebel, a Rebel ship with slightly different readings can fall on the Imperial side. A line 0.75 units from every known ship tolerates almost three times as much wobble.</p>
+              <p>This is an intuition, not a guarantee: a wide margin tends to generalize well, but it can&rsquo;t promise that every future ship is classified correctly.</p>
+              <p>Notice also that the margin depends <b>only on the nearest ships</b>. Move a far-away ship a little and the margin doesn&rsquo;t change. That idea returns in scene 6.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================== SCENE 4 ===== -->
+    <section class="scene" data-scene="4" data-short="Distance" aria-labelledby="s4h" hidden>
+      <header class="scene-head"><span class="vnum">4</span><h2 id="s4h">Score is not distance</h2></header>
+      <div class="comms">
+        <p><span class="who">LUKE</span>If I double every weight, every score doubles. So how can a score measure distance?</p>
+        <p><span class="who">C-3PO</span>It can&rsquo;t on its own, sir. Divide by the length of <span class="tex" data-tex="\mathbf{w}"></span>.</p>
+        <p><span class="who">R2-D2</span><span class="beep">[smug beep]</span> <span class="who who-in">C-3PO</span>He&rsquo;s demonstrating. Multiply everything by any positive number: the scores change, the line does not move, and neither does any ship&rsquo;s distance.</p>
+      </div>
+      <div class="stage">
+        <div class="viz">
+          <div class="tag tag-trained">Line C from the solver, then scaled by you</div>
+          <svg class="board" id="plot4" role="img" aria-label="Boundary and score-plus-or-minus-one lines under a scaling slider."></svg>
+          <ul class="legend" data-keys="rebel imperial boundary edges selected"></ul>
+          <div class="controls">
+            <div class="slider"><label for="s4"><span>Scale both <span class="tex" data-tex="\mathbf{w}"></span> and <span class="tex" data-tex="w_0"></span> by <span class="tex" data-tex="s"></span></span><b class="num" id="s4v"></b></label><input type="range" id="s4" min="-1.386" max="1.386" step="0.01"></div>
+            <p class="hint">Click a ship to measure it.</p>
+          </div>
+          <div class="readout" id="read4" aria-live="polite"></div>
+        </div>
+        <div class="notes">
+          <div class="eq-card">
+            <div class="tex-block" data-tex="r(\mathbf{x}) = \frac{f(\mathbf{x})}{\lVert\mathbf{w}\rVert}, \qquad \lVert\mathbf{w}\rVert = \sqrt{w_1^2 + w_2^2}"></div>
+            <dl class="defs">
+              <dt><span class="tex" data-tex="\lVert\mathbf{w}\rVert"></span></dt><dd>the length of the weight arrow.</dd>
+              <dt><span class="tex" data-tex="r(\mathbf{x})"></span></dt><dd>signed distance from the boundary: its size is the real distance, its sign says which side.</dd>
+              <dt><span class="tex" data-tex="s"></span></dt><dd>a positive scale factor: <span class="tex" data-tex="\mathbf{w} \to s\mathbf{w},\ w_0 \to s\,w_0"></span>.</dd>
+            </dl>
+          </div>
+          <p class="plain"><b>In plain words.</b> Scaling by <span class="tex" data-tex="s"></span> multiplies the score <em>and</em> <span class="tex" data-tex="\lVert\mathbf{w}\rVert"></span> by <span class="tex" data-tex="s"></span>, so their ratio stays put. Watch the dashed lines where the score is exactly &plusmn;1: they squeeze in or spread out with <span class="tex" data-tex="s"></span>. &ldquo;Score = 1&rdquo; is a <b>score threshold</b>, not a fixed distance.</p>
+          <details class="why">
+            <summary>Show why <span class="tex" data-tex="f/\lVert\mathbf{w}\rVert"></span> is the distance</summary>
+            <div class="why-body">
+              <p>Walk from a ship straight to the boundary. Call the foot of that walk <span class="tex" data-tex="\mathbf{x}_\perp"></span> and the walk length <span class="tex" data-tex="r"></span>. The walk is along <span class="tex" data-tex="\mathbf{w}"></span> (scene 2), so</p>
+              <div class="tex-block" data-tex="\mathbf{x} = \mathbf{x}_\perp + r\,\frac{\mathbf{w}}{\lVert\mathbf{w}\rVert}."></div>
+              <p>Score both sides. <span class="tex" data-tex="f(\mathbf{x}_\perp) = 0"></span> because it is on the line, and <span class="tex" data-tex="\mathbf{w}^{\mathsf T}\mathbf{w} = \lVert\mathbf{w}\rVert^2"></span>:</p>
+              <div class="tex-block" data-tex="f(\mathbf{x}) = 0 + r\,\frac{\mathbf{w}^{\mathsf T}\mathbf{w}}{\lVert\mathbf{w}\rVert} = r\,\lVert\mathbf{w}\rVert \;\Rightarrow\; r = \frac{f(\mathbf{x})}{\lVert\mathbf{w}\rVert}."></div>
+              <p>This distance assumes both axes are in comparable units, which is why scene 1 standardized them.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================== SCENE 5 ===== -->
+    <section class="scene" data-scene="5" data-short="Train" aria-labelledby="s5h" hidden>
+      <header class="scene-head"><span class="vnum">5</span><h2 id="s5h">Training: the widest corridor</h2></header>
+      <div class="comms">
+        <p><span class="who">LEIA</span>R2, find the widest corridor.</p>
+        <p><span class="who">C-3PO</span>He&rsquo;s using the trick from the last scene, Your Highness. Since scaling is free, he picks the scale where the nearest ships score exactly &plusmn;1. Then the corridor&rsquo;s half-width is <span class="tex" data-tex="1/\lVert\mathbf{w}\rVert"></span>.</p>
+        <p><span class="who">HAN</span>So a wider corridor means a smaller <span class="tex" data-tex="\mathbf{w}"></span>. Shrink it as far as you can while every ship still scores at least 1 on its own side.</p>
+      </div>
+      <div class="stage">
+        <div class="viz">
+          <div class="tag tag-trained">Trained by the solver (hard margin)</div>
+          <svg class="board" id="plot5" role="img" aria-label="Trained boundary with its margin edges at score plus and minus one."></svg>
+          <ul class="legend" data-keys="rebel imperial boundary edges corridor violated"></ul>
+          <div class="controls">
+            <div class="slider"><label for="t5"><span>Explore: multiply the trained <span class="tex" data-tex="\mathbf{w}, w_0"></span> by <span class="tex" data-tex="t"></span></span><b class="num" id="t5v"></b></label><input type="range" id="t5" min="0.5" max="1.5" step="0.01">
+              <div class="slider-ends"><span>wider, but breaks constraints</span><span>narrower than needed</span></div></div>
+            <div class="btn-row"><button type="button" class="chip" id="lab5" aria-pressed="false">Label every ship with <span class="tex" data-tex="\tilde{y}_n f(\mathbf{x}_n)"></span></button></div>
+          </div>
+          <div class="readout" id="read5" aria-live="polite"></div>
+        </div>
+        <div class="notes">
+          <div class="eq-card">
+            <div class="tex-block" data-tex="\min_{\mathbf{w},\,w_0}\ \tfrac12\lVert\mathbf{w}\rVert^2 \quad\text{subject to}\quad \tilde{y}_n f(\mathbf{x}_n) \ge 1 \ \text{ for every } n"></div>
+            <dl class="defs">
+              <dt><span class="tex" data-tex="\tilde{y}_n f(\mathbf{x}_n)"></span></dt><dd>positive when ship <i>n</i> is on its correct side (a Rebel with a negative score gives (&minus;1)(negative) &gt; 0).</dd>
+              <dt><span class="tex" data-tex="\ge 1"></span></dt><dd>not just correct, but scoring at least 1: outside the corridor or on its edge.</dd>
+              <dt><span class="tex" data-tex="\tfrac12\lVert\mathbf{w}\rVert^2"></span></dt><dd>same winner as minimizing <span class="tex" data-tex="\lVert\mathbf{w}\rVert"></span>; the square and &frac12; just make the calculus clean.</dd>
+              <dt><span class="tex" data-tex="1/\lVert\mathbf{w}\rVert"></span></dt><dd>the <b>geometric margin</b>: the distance from the boundary to each dashed edge.</dd>
+            </dl>
+          </div>
+          <p class="plain"><b>In plain words.</b> Three lines, one family: <span class="tex" data-tex="f(\mathbf{x}) = 0"></span> is the boundary (solid), <span class="tex" data-tex="f(\mathbf{x}) = +1"></span> and <span class="tex" data-tex="f(\mathbf{x}) = -1"></span> are the corridor edges (dashed). The constraint says no ship may sit inside the corridor. Shrinking <span class="tex" data-tex="\mathbf{w}"></span> pushes the edges outward until they hit ships.</p>
+          <details class="why">
+            <summary>Show why the &ldquo;1&rdquo; can be any positive number</summary>
+            <div class="why-body">
+              <p>Suppose we demanded <span class="tex" data-tex="\tilde{y}_n f(\mathbf{x}_n) \ge 5"></span>. Divide <span class="tex" data-tex="\mathbf{w}, w_0"></span> by 5 and every score divides by 5, giving back <span class="tex" data-tex="\ge 1"></span>. Same line, same corridor. The 1 just fixes the scale from scene 4 so the problem has one answer instead of infinitely many rescaled copies.</p>
+              <p>The slider only checks one direction (rescaling). The solver searches over every <span class="tex" data-tex="\mathbf{w}, w_0"></span>; it lands on line C from scene 3, with margin 0.75.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================== SCENE 6 ===== -->
+    <section class="scene" data-scene="6" data-short="Support" aria-labelledby="s6h" hidden>
+      <header class="scene-head"><span class="vnum">6</span><h2 id="s6h">The ships that hold up the line</h2></header>
+      <div class="comms">
+        <p><span class="who">LUKE</span>Which ships actually decided where the line goes?</p>
+        <p><span class="who">C-3PO</span>R2 gives every ship a weight <span class="tex" data-tex="\alpha_n"></span>. Most come out exactly zero. The few that don&rsquo;t are the <b>support vectors</b>.</p>
+        <p><span class="who">HAN</span>So I could move any other ship and nothing changes?</p>
+        <p><span class="who">LEIA</span>Try it. Drag them.</p>
+      </div>
+      <div class="stage">
+        <div class="viz">
+          <div class="tag tag-trained">Retrained by the solver every time you drag</div>
+          <svg class="board is-drag" id="plot6" role="img" aria-label="Draggable ships with support vectors highlighted."></svg>
+          <ul class="legend" data-keys="rebel imperial boundary edges sv edge0"></ul>
+          <div class="controls">
+            <p class="hint">Drag any ship. <span id="warn6" class="warn" hidden></span></p>
+            <div class="btn-row"><button type="button" class="btn btn-quiet" id="reset6">Put the ships back</button></div>
+          </div>
+          <div class="alphas" id="alphas6" aria-live="polite"></div>
+        </div>
+        <div class="notes">
+          <div class="eq-card">
+            <div class="tex-block" data-tex="\mathbf{w} = \sum_{n} \alpha_n\, \tilde{y}_n\, \mathbf{x}_n, \qquad \alpha_n \ge 0"></div>
+            <div class="tex-block" data-tex="\alpha_n\,\big[\tilde{y}_n f(\mathbf{x}_n) - 1\big] = 0"></div>
+            <dl class="defs">
+              <dt><span class="tex" data-tex="\alpha_n"></span></dt><dd>how hard ship <i>n</i> pushes on the line. Found by the solver.</dd>
+              <dt><span class="tex" data-tex="\tilde{y}_n f(\mathbf{x}_n) - 1"></span></dt><dd>how far past its corridor edge ship <i>n</i> sits (0 = on the edge).</dd>
+            </dl>
+          </div>
+          <p class="plain"><b>In plain words.</b> The second equation says a product is zero, so for every ship <b>at least one</b> factor is zero. A ship beyond its edge must have <span class="tex" data-tex="\alpha_n = 0"></span> and has no say. A ship with <span class="tex" data-tex="\alpha_n > 0"></span> must sit exactly on an edge (dashed line), <b>not</b> on the boundary. The reverse need not hold: in the starting layout Blue Three touches an edge yet has <span class="tex" data-tex="\alpha_n = 0"></span>, because three other ships already pin the line.</p>
+          <details class="why">
+            <summary>Show why: the Lagrangian</summary>
+            <div class="why-body">
+              <p>To minimize <span class="tex" data-tex="\tfrac12\lVert\mathbf{w}\rVert^2"></span> under the constraints, give each constraint a non-negative &ldquo;price&rdquo; <span class="tex" data-tex="\alpha_n"></span> and form the Lagrangian:</p>
+              <div class="tex-block" data-tex="\mathcal{L}(\mathbf{w}, w_0, \boldsymbol\alpha) = \tfrac12\lVert\mathbf{w}\rVert^2 - \sum_n \alpha_n\big[\tilde{y}_n(\mathbf{w}^{\mathsf T}\mathbf{x}_n + w_0) - 1\big]"></div>
+              <p>At the optimum the slopes in <span class="tex" data-tex="\mathbf{w}"></span> and <span class="tex" data-tex="w_0"></span> are zero:</p>
+              <div class="tex-block" data-tex="\frac{\partial\mathcal{L}}{\partial\mathbf{w}} = \mathbf{w} - \sum_n \alpha_n\tilde{y}_n\mathbf{x}_n = 0, \qquad \frac{\partial\mathcal{L}}{\partial w_0} = -\sum_n \alpha_n\tilde{y}_n = 0."></div>
+              <p>The first gives <span class="tex" data-tex="\mathbf{w} = \sum_n \alpha_n\tilde{y}_n\mathbf{x}_n"></span>. The second says Rebel and Imperial support vectors push equally hard. The optimality (KKT) conditions add <b>complementary slackness</b>: a price is charged only on a constraint that is tight, which is <span class="tex" data-tex="\alpha_n[\tilde{y}_n f(\mathbf{x}_n) - 1] = 0"></span>.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================== SCENE 7 ===== -->
+    <section class="scene" data-scene="7" data-short="Kernels" aria-labelledby="s7h" hidden>
+      <header class="scene-head"><span class="vnum">7</span><h2 id="s7h">Smugglers in the middle</h2></header>
+      <div class="comms">
+        <p><span class="who">LEIA</span>New sector. Rebel smugglers tune their readings to look perfectly ordinary, so they sit in the middle. Imperial patrols show up all around them.</p>
+        <p><span class="who">HAN</span>No straight line cuts that.</p>
+        <p><span class="who">C-3PO</span>R2 has rewritten the problem so it only uses ships through dot products <span class="tex" data-tex="\mathbf{x}^{\mathsf T}\mathbf{x}_n"></span>. Swap that dot product for a <b>kernel</b> <span class="tex" data-tex="K(\mathbf{x}, \mathbf{x}_n)"></span> and the boundary may curve.</p>
+        <p><span class="who">LUKE</span>Curve how?</p>
+        <p><span class="who">C-3PO</span>As if every ship had extra readings, like <span class="tex" data-tex="x_1^2"></span> and <span class="tex" data-tex="x_1x_2"></span>, sir. The line is straight up there; down here it looks curved.</p>
+      </div>
+      <div class="stage">
+        <div class="viz">
+          <div class="tag tag-trained">Trained by the solver &middot; soft margin, <span class="tex" data-tex="C = 10"></span> (scene 8)</div>
+          <svg class="board" id="plot7" role="img" aria-label="Ring-shaped data with a kernel SVM boundary."></svg>
+          <ul class="legend" data-keys="rebel imperial boundary edges sv"></ul>
+          <div class="controls">
+            <div class="btn-row" role="group" aria-label="Kernel">
+              <button type="button" class="chip" data-kernel="linear">Linear</button>
+              <button type="button" class="chip" data-kernel="quadratic">Quadratic</button>
+              <button type="button" class="chip" data-kernel="rbf">Gaussian (RBF)</button>
+            </div>
+            <div class="slider" id="gammaBox"><label for="g7"><span>RBF width <span class="tex" data-tex="\gamma"></span></span><b class="num" id="g7v"></b></label><input type="range" id="g7" min="-2.3" max="1.61" step="0.01">
+              <div class="slider-ends"><span>smooth</span><span>tight around each ship</span></div></div>
+          </div>
+          <div class="readout" id="read7" aria-live="polite"></div>
+        </div>
+        <div class="notes">
+          <div class="eq-card">
+            <div class="tex-block" data-tex="f(\mathbf{x}) = \sum_{n} \alpha_n\,\tilde{y}_n\, K(\mathbf{x}, \mathbf{x}_n) + w_0"></div>
+            <dl class="defs">
+              <dt><span class="tex" data-tex="K(\mathbf{x}, \mathbf{x}_n)"></span></dt><dd>a similarity between a new ship and training ship <i>n</i>, replacing <span class="tex" data-tex="\mathbf{x}^{\mathsf T}\mathbf{x}_n"></span>.</dd>
+              <dt>linear</dt><dd><span class="tex" data-tex="K = \mathbf{x}^{\mathsf T}\mathbf{x}_n"></span>: the straight line again.</dd>
+              <dt>quadratic</dt><dd><span class="tex" data-tex="K = (\mathbf{x}^{\mathsf T}\mathbf{x}_n + 1)^2"></span>: ellipses and other conics.</dd>
+              <dt>Gaussian</dt><dd><span class="tex" data-tex="K = \exp(-\gamma\lVert\mathbf{x} - \mathbf{x}_n\rVert^2)"></span>: near ships count, far ships fade.</dd>
+            </dl>
+          </div>
+          <p class="plain"><b>In plain words.</b> Plug <span class="tex" data-tex="\mathbf{w} = \sum\alpha_n\tilde{y}_n\mathbf{x}_n"></span> into <span class="tex" data-tex="\mathbf{w}^{\mathsf T}\mathbf{x} + w_0"></span> and the score becomes a weighted vote of the training ships, each vote set by a dot product. The weights now sit on <b>training examples</b> (<span class="tex" data-tex="\alpha_n"></span>), not on readings. Only support vectors vote.</p>
+          <details class="why">
+            <summary>Show why: the dual problem</summary>
+            <div class="why-body">
+              <p>Put <span class="tex" data-tex="\mathbf{w} = \sum\alpha_n\tilde{y}_n\mathbf{x}_n"></span> and <span class="tex" data-tex="\sum\alpha_n\tilde{y}_n = 0"></span> back into the Lagrangian from scene 6. <span class="tex" data-tex="\mathbf{w}"></span> and <span class="tex" data-tex="w_0"></span> disappear, leaving a problem in the <span class="tex" data-tex="\alpha"></span>&rsquo;s alone:</p>
+              <div class="tex-block" data-tex="\max_{\boldsymbol\alpha}\ \sum_n \alpha_n - \tfrac12\sum_n\sum_m \alpha_n\alpha_m\tilde{y}_n\tilde{y}_m\,\mathbf{x}_n^{\mathsf T}\mathbf{x}_m \quad\text{s.t.}\quad \alpha_n \ge 0,\ \sum_n\alpha_n\tilde{y}_n = 0"></div>
+              <p>The ships appear only inside <span class="tex" data-tex="\mathbf{x}_n^{\mathsf T}\mathbf{x}_m"></span>. Replace it with <span class="tex" data-tex="K(\mathbf{x}_n, \mathbf{x}_m)"></span> everywhere and nothing else in the algorithm changes. This page solves exactly this problem (with <span class="tex" data-tex="\alpha_n \le C"></span> added, scene 8) by sequential minimal optimization.</p>
+            </div>
+          </details>
+          <details class="why">
+            <summary>Show why a kernel is a dot product in a bigger space</summary>
+            <div class="why-body">
+              <p>Expand the quadratic kernel for 2-D ships:</p>
+              <div class="tex-block" data-tex="(\mathbf{x}^{\mathsf T}\mathbf{z} + 1)^2 = \phi(\mathbf{x})^{\mathsf T}\phi(\mathbf{z}), \quad \phi(\mathbf{x}) = \big(1,\ \sqrt2x_1,\ \sqrt2x_2,\ x_1^2,\ x_2^2,\ \sqrt2x_1x_2\big)"></div>
+              <p>So the quadratic SVM is a <b>linear</b> SVM on six made-up readings. A flat boundary in that 6-D space, viewed back in 2-D, is a conic: here, an ellipse around the smugglers. The kernel computes the 6-D dot product without ever building <span class="tex" data-tex="\phi"></span>. The Gaussian kernel corresponds to infinitely many features, which is why it can bend almost any way.</p>
+              <p class="live" id="phi7">Click a ship to check this with real numbers.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================== SCENE 8 ===== -->
+    <section class="scene" data-scene="8" data-short="Soft" aria-labelledby="s8h" hidden>
+      <header class="scene-head"><span class="vnum">8</span><h2 id="s8h">The stolen shuttle</h2></header>
+      <div class="comms">
+        <p><span class="who">HAN</span>We&rsquo;re flying a stolen Imperial shuttle, the <i>Tydirium</i>. Reads Imperial, but it&rsquo;s ours. Label it Rebel.</p>
+        <p><span class="who">LEIA</span>Add the damaged courier too. Its readings are weak and close to the line.</p>
+        <p><span class="who">C-3PO</span>Then no straight line separates the ships, and the hard-margin problem has no solution at all. We must allow violations, but charge for them.</p>
+        <p><span class="who">R2-D2</span><span class="beep">[questioning warble]</span> <span class="who who-in">C-3PO</span>He asks how much each unit of violation should cost. That price is <span class="tex" data-tex="C"></span>.</p>
+      </div>
+      <div class="stage">
+        <div class="viz">
+          <div class="tag tag-trained">Retrained by the solver for each <span class="tex" data-tex="C"></span></div>
+          <svg class="board" id="plot8" role="img" aria-label="Soft-margin SVM with slack segments for margin violations."></svg>
+          <ul class="legend" data-keys="rebel imperial boundary edges sv slack"></ul>
+          <div class="controls">
+            <div class="slider"><label for="c8"><span>Violation cost <span class="tex" data-tex="C"></span></span><b class="num" id="c8v"></b></label><input type="range" id="c8" min="-2" max="2" step="0.02">
+              <div class="slider-ends"><span>cheap violations, wide corridor</span><span>costly violations, narrow corridor</span></div></div>
+          </div>
+          <div class="readout" id="read8" aria-live="polite"></div>
+        </div>
+        <div class="notes">
+          <div class="eq-card">
+            <div class="tex-block" data-tex="\min_{\mathbf{w},\,w_0,\,\boldsymbol\xi}\ \tfrac12\lVert\mathbf{w}\rVert^2 + C\sum_n \xi_n \quad\text{s.t.}\quad \tilde{y}_n f(\mathbf{x}_n) \ge 1 - \xi_n,\ \ \xi_n \ge 0"></div>
+            <div class="tex-block" data-tex="\xi_n = \max\big(0,\ 1 - \tilde{y}_n f(\mathbf{x}_n)\big)"></div>
+            <dl class="defs">
+              <dt><span class="tex" data-tex="\xi_n"></span></dt><dd><b>slack</b>: how far ship <i>n</i> falls short of its corridor edge, in score units.</dd>
+              <dt><span class="tex" data-tex="\xi_n = 0"></span></dt><dd>on or beyond its edge. No violation.</dd>
+              <dt><span class="tex" data-tex="0 < \xi_n \le 1"></span></dt><dd>inside the corridor but still on the correct side. A margin violation, <b>not</b> a mistake.</dd>
+              <dt><span class="tex" data-tex="\xi_n > 1"></span></dt><dd>on the wrong side of the boundary: misclassified.</dd>
+              <dt><span class="tex" data-tex="C"></span></dt><dd>the price per unit of slack.</dd>
+            </dl>
+          </div>
+          <p class="plain"><b>In plain words.</b> Two goals pull against each other: a wide corridor (small <span class="tex" data-tex="\lVert\mathbf{w}\rVert"></span>) and few violations (small <span class="tex" data-tex="\sum\xi_n"></span>). <b>Larger <span class="tex" data-tex="C"></span></b> makes violations expensive, so the corridor narrows to avoid them. <b>Smaller <span class="tex" data-tex="C"></span></b> makes them cheap, so the corridor widens and lets ships in.</p>
+          <details class="why">
+            <summary>Show why: what changes in the dual</summary>
+            <div class="why-body">
+              <p>Redo the Lagrangian with slack and the only change in the dual is a ceiling: <span class="tex" data-tex="0 \le \alpha_n \le C"></span>. That gives three kinds of ship:</p>
+              <ul>
+                <li><span class="tex" data-tex="\alpha_n = 0"></span>: beyond its edge, no say.</li>
+                <li><span class="tex" data-tex="0 < \alpha_n < C"></span>: exactly on an edge (<span class="tex" data-tex="\xi_n = 0"></span>).</li>
+                <li><span class="tex" data-tex="\alpha_n = C"></span>: pushing as hard as allowed; may be inside the corridor or on the wrong side.</li>
+              </ul>
+              <p>Equivalently, the soft SVM minimizes <span class="tex" data-tex="\tfrac12\lVert\mathbf{w}\rVert^2 + C\sum_n \max(0, 1 - \tilde{y}_n f(\mathbf{x}_n))"></span>, the <b>hinge loss</b>: zero for ships safely past their edge, rising in a straight line as they intrude.</p>
+            </div>
+          </details>
+          <details class="why">
+            <summary>Optional: the <span class="tex" data-tex="
+u"></span>-SVM</summary>
+            <div class="why-body">
+              <p><span class="tex" data-tex="C"></span> is hard to pick because its scale has no obvious meaning. The <b>&nu;-SVM</b> replaces it with a number <span class="tex" data-tex="\nu \in (0, 1]"></span> that does: <span class="tex" data-tex="\nu"></span> is an upper bound on the fraction of ships that violate the margin, and a lower bound on the fraction that are support vectors. Setting <span class="tex" data-tex="\nu = 0.1"></span> says &ldquo;let at most about 10% of ships into the corridor.&rdquo; For a given dataset each <span class="tex" data-tex="\nu"></span> matches some <span class="tex" data-tex="C"></span>, so it is a re-labelled dial, not a different classifier.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================== SCENE 9 ===== -->
+    <section class="scene" data-scene="9" data-short="Mission" aria-labelledby="s9h" hidden>
+      <header class="scene-head"><span class="vnum">9</span><h2 id="s9h">Incoming contact</h2></header>
+      <div class="comms">
+        <p><span class="who">LEIA</span>Unidentified ship on approach. Classify it.</p>
+        <p><span class="who">HAN</span>Never tell me the odds.</p>
+        <p><span class="who">C-3PO</span>I wasn&rsquo;t going to, sir. An SVM gives a <em>score</em> and a <em>distance</em>, not odds.</p>
+      </div>
+      <div class="stage">
+        <div class="viz">
+          <div class="tag tag-trained" id="tag9"></div>
+          <svg class="board is-place" id="plot9" role="img" aria-label="Click to place an unidentified ship and classify it."></svg>
+          <ul class="legend" data-keys="rebel imperial unknown boundary edges"></ul>
+          <div class="controls">
+            <p class="hint">Click the scope to place the ship, or type its raw readings:</p>
+            <div class="raw-inputs">
+              <label>Engine <input type="number" id="e9" step="10"> MW</label>
+              <label>Transponder <input type="number" id="p9" step="0.5"> dB</label>
+            </div>
+          </div>
+        </div>
+        <div class="notes">
+          <div class="verdict" id="verdict9" aria-live="polite"></div>
+          <div class="eq-card">
+            <div class="tex-block" id="calc9"></div>
+          </div>
+          <p class="plain"><b>In plain words.</b> The sign of the score picks the side. Its size divided by <span class="tex" data-tex="\lVert\mathbf{w}\rVert"></span> says how far the ship is from the line. A ship inside the corridor is a close call: the training data never placed a ship there with confidence.</p>
+        </div>
+      </div>
+
+      <div class="recap">
+        <h3>Mission debrief</h3>
+        <table>
+          <thead><tr><th>Math</th><th>What it means</th><th>In the story</th></tr></thead>
+          <tbody>
+            <tr><td><span class="tex" data-tex="\mathbf{x}_n,\ \tilde{y}_n"></span></td><td>readings and known side (&plusmn;1)</td><td>the fourteen identified ships</td></tr>
+            <tr><td><span class="tex" data-tex="f(\mathbf{x}) = \mathbf{w}^{\mathsf T}\mathbf{x} + w_0"></span></td><td>a score; its sign is the prediction</td><td>R2&rsquo;s weighted sum</td></tr>
+            <tr><td><span class="tex" data-tex="f(\mathbf{x})/\lVert\mathbf{w}\rVert"></span></td><td>signed distance to the boundary</td><td>how close a ship flies to the line</td></tr>
+            <tr><td><span class="tex" data-tex="\min \tfrac12\lVert\mathbf{w}\rVert^2,\ \tilde{y}_nf(\mathbf{x}_n)\ge1"></span></td><td>widest corridor; margin <span class="tex" data-tex="1/\lVert\mathbf{w}\rVert"></span></td><td>Leia&rsquo;s safety buffer</td></tr>
+            <tr><td><span class="tex" data-tex="\alpha_n > 0"></span></td><td>support vectors, on the edges</td><td>the few ships that pin the line</td></tr>
+            <tr><td><span class="tex" data-tex="K(\mathbf{x}, \mathbf{x}_n)"></span></td><td>dot product in a bigger feature space</td><td>the smugglers in the middle</td></tr>
+            <tr><td><span class="tex" data-tex="\xi_n,\ C"></span></td><td>paid margin violations and their price</td><td>the <i>Tydirium</i> and the courier</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="scene-nav">
+      <button type="button" class="btn" id="prev">&larr; Back</button>
+      <span class="scene-count" id="sceneCount"></span>
+      <button type="button" class="btn btn-next" id="next">Next &rarr;</button>
+    </footer>
+
+  </main>
+
+  <footer class="foot">
+    <p>
+      Murphy, <i>Probabilistic Machine Learning: An Introduction</i>, &sect;17.3 (support vector machines: large-margin
+      classifiers, the dual problem, soft margins, the kernel trick). Every boundary labelled &ldquo;trained&rdquo; is
+      solved on the page by sequential minimal optimization; hand-set lines are labelled as such. A fan-made teaching
+      story; characters belong to their owners.
+    </p>
+  </footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
