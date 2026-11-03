@@ -19,6 +19,7 @@ the deployed site on GitHub Pages.
 | ✅ | [`kernel/`](kernel/) — **Closer Counts More** | Murphy §16.3: Gaussian kernel regression for beginners, weights that shrink with distance, a draggable study-time line, the bandwidth h from copy-the-nearest to plain average |
 | ✅ | [`gp/`](gp/) — **Many Functions, Then Fewer** | Murphy §17.2: Gaussian process regression, a prior over functions becoming a posterior one point at a time, noise-free vs. noisy observations, the length scale, joint posterior samples |
 | ✅ | [`svm/`](svm/) — **The Widest Corridor** | Murphy §17.3: support vector machines as a Star Wars mission, scores vs. distances, the hard margin, support vectors, the dual and kernels, soft margins and C, with an SMO solver running on the page |
+| ✅ | [`sparse/`](sparse/) — **Which Ships Count?** | Murphy §17.3.5–17.4: SVMs in practice as a Star Wars mission, scores vs. probabilities, hinge loss and support vectors, C and γ, Platt scaling and calibration, ε-SVR, sparse kernel machines compared |
 | ☐ | Uncorrelated ≠ independent | ρ ≈ 0 for a Gaussian blob vs. Y = X², side by side |
 | ☐ | Simpson's paradox | Iris sepal data with a "merge species" toggle |
 | ☐ | Mahalanobis vs. Euclidean | drop a test point, compare both distances |

@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Which Ships Count?</title>
+<meta name="description" content="SVMs in practice as a Rebel sensor mission: scores, hinge loss and support vectors, C and gamma, Platt scaling, support vector regression, and sparse kernel machines.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Ship icons. Shape as well as color tells the sides apart. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="ico-rebel" viewBox="-11 -11 22 22">
+      <path d="M-8,-8 L8,8 M8,-8 L-8,8" class="ico-stroke" stroke-width="3.2" stroke-linecap="round"/>
+      <path d="M0,-9 L0,9" class="ico-stroke" stroke-width="2" stroke-linecap="round"/>
+      <circle r="2.8" class="ico-fill"/>
+    </symbol>
+    <symbol id="ico-imperial" viewBox="-11 -11 22 22">
+      <rect x="-10" y="-9" width="3.4" height="18" rx="1" class="ico-fill"/>
+      <rect x="6.6" y="-9" width="3.4" height="18" rx="1" class="ico-fill"/>
+      <path d="M-7,0 L7,0" class="ico-stroke" stroke-width="2.4"/>
+      <circle r="4.2" class="ico-fill"/>
+    </symbol>
+    <symbol id="ico-unknown" viewBox="-11 -11 22 22">
+      <path d="M0,-10 L10,0 L0,10 L-10,0 Z" class="ico-fill"/>
+      <text y="4" text-anchor="middle" class="ico-q">?</text>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 12 &middot; Murphy &sect;17.3.5&ndash;17.4</p>
+    <h1>Which Ships Count?</h1>
+    <p class="lede">
+      Echo Base&rsquo;s SVM is trained. Now the Rebels have to <strong>use</strong> it: read its scores, see which
+      training ships it actually relies on, tune it, turn scores into probabilities, and predict fuel use.
+      Labels are <b class="reb">Rebel y&nbsp;=&nbsp;&minus;1</b> and <b class="imp">Imperial y&nbsp;=&nbsp;+1</b>.
+    </p>
+  </header>
+
+  <main class="console" id="console">
+
+    <nav class="progress" aria-label="Scenes">
+      <ol id="progress"></ol>
+    </nav>
+
+    <!-- =================================================== SCENE 1 ===== -->
+    <section class="scene" data-scene="1" data-short="Classify" aria-labelledby="s1h">
+      <header class="scene-head"><span class="vnum">1</span><h2 id="s1h">Classify a ship</h2></header>
+      <p class="mission">An unidentified ship appears on the radar. <b>Drag it</b> (or click anywhere) and watch its score.</p>
+      <div class="stage">
+        <div class="viz">
+          <div class="tag tag-trained">Linear SVM, C = 1, fitted on this page</div>
+          <svg class="board is-place" id="plot1" role="img" aria-label="Radar with sixteen training ships, the decision boundary, the margin, and a draggable unknown ship."></svg>
+          <ul class="legend" data-keys="rebel imperial unknown boundary edges"></ul>
+          <p class="hint">Keyboard: tab to the &#9670; ship and use the arrow keys.</p>
+        </div>
+        <div class="notes">
+          <div class="verdict" id="verdict1" aria-live="polite"></div>
+          <div class="eq-card">
+            <div class="tex-block" data-tex="f(\mathbf{x}) = \mathbf{w}^{\mathsf T}\mathbf{x} + b = w_1x_1 + w_2x_2 + b"></div>
+            <div class="tex-block" id="calc1"></div>
+            <dl class="defs">
+              <dt><span class="tex" data-tex="\mathbf{x}=(x_1,x_2)"></span></dt><dd>the ship&rsquo;s position: engine heat and hull mass (standardized).</dd>
+              <dt><span class="tex" data-tex="\mathbf{w}"></span></dt><dd>weights learned from the 16 training ships.</dd>
+              <dt><span class="tex" data-tex="b"></span></dt><dd>offset, also learned.</dd>
+              <dt><span class="tex" data-tex="f(\mathbf{x})"></span></dt><dd>the SVM <b>score</b>. Solid line: <span class="tex" data-tex="f=0"></span>. Dashed lines: <span class="tex" data-tex="f=\pm1"></span>, the margin edges.</dd>
+            </dl>
+          </div>
+          <p class="plain"><b>Not a probability.</b> A score of 2 does not mean &ldquo;200%&rdquo; or &ldquo;very likely.&rdquo; Its sign picks the side; its size grows with distance from the line. It can be any real number. Scene&nbsp;4 turns scores into probabilities.</p>
+          <details class="why">
+            <summary>Show the math</summary>
+            <div class="why-body" id="math1"></div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================== SCENE 2 ===== -->
+    <section class="scene" data-scene="2" data-short="Support" aria-labelledby="s2h" hidden>
+      <header class="scene-head"><span class="vnum">2</span><h2 id="s2h">See why support vectors matter</h2></header>
+      <p class="mission">Same model. <b>Hide the ordinary ships</b>: the line does not move. Click any ship to see its hinge loss.</p>
+      <div class="stage">
+        <div class="viz">
+          <div class="tag tag-trained" id="tag2"></div>
+          <svg class="board" id="plot2" role="img" aria-label="Training ships with support vectors ringed in green."></svg>
+          <ul class="legend" data-keys="rebel imperial sv boundary edges"></ul>
+          <div class="btn-row">
+            <button type="button" class="chip" id="hide2" aria-pressed="false">Hide non-support ships</button>
+          </div>
+          <div class="readout" id="read2" aria-live="polite"></div>
+        </div>
+        <div class="notes">
+          <div class="eq-card">
+            <div class="tex-block" data-tex="\ell_{\text{hinge}} = \max\big(0,\ 1 - y\,f(\mathbf{x})\big)"></div>
+            <dl class="defs">
+              <dt><span class="tex" data-tex="y"></span></dt><dd>true label: <b class="reb">&minus;1 Rebel</b> or <b class="imp">+1 Imperial</b>.</dd>
+              <dt><span class="tex" data-tex="y\,f(\mathbf{x})"></span></dt><dd>positive = right side of the line; <span class="tex" data-tex="\ge 1"></span> = beyond its margin edge.</dd>
+            </dl>
+          </div>
+          <svg class="chart" id="loss2" role="img" aria-label="Hinge loss against y f(x), with each training ship placed on the curve."></svg>
+          <label class="check"><input type="checkbox" id="logit2"> Compare logistic loss <span class="tex" data-tex="\log_2(1+e^{-yf})"></span></label>
+          <p class="plain"><b>Three zones.</b> Beyond the margin (<span class="tex" data-tex="yf\ge1"></span>): loss 0. Inside the margin but on the right side (<span class="tex" data-tex="0&lt;yf&lt;1"></span>): <b>correct, yet still penalized</b>. Wrong side (<span class="tex" data-tex="yf&lt;0"></span>): loss above 1.</p>
+          <details class="why">
+            <summary>Show the math</summary>
+            <div class="why-body">
+              <p>Training minimizes <span class="tex" data-tex="\tfrac12\lVert\mathbf{w}\rVert^2 + C\sum_n \max(0, 1 - y_nf(\mathbf{x}_n))"></span>. The solution has the form</p>
+              <div class="tex-block" data-tex="\mathbf{w} = \sum_n \alpha_n y_n \mathbf{x}_n, \qquad 0 \le \alpha_n \le C."></div>
+              <p>Ships with <span class="tex" data-tex="\alpha_n = 0"></span> vanish from that sum. The rest are <b>support vectors</b>. The optimality (KKT) conditions say:</p>
+              <ul>
+                <li><span class="tex" data-tex="y_nf(\mathbf{x}_n) &gt; 1"></span> &rArr; <span class="tex" data-tex="\alpha_n = 0"></span> (not used)</li>
+                <li><span class="tex" data-tex="0 &lt; \alpha_n &lt; C"></span> &rArr; <span class="tex" data-tex="y_nf(\mathbf{x}_n) = 1"></span>: exactly on an edge, <b>loss 0 but still a support vector</b></li>
+                <li><span class="tex" data-tex="y_nf(\mathbf{x}_n) &lt; 1"></span> &rArr; <span class="tex" data-tex="\alpha_n = C"></span>: inside the margin or misclassified</li>
+              </ul>
+              <p>Logistic loss is never exactly 0, so in logistic regression every training point keeps some pull on the answer. The flat part of the hinge is what makes SVMs sparse.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================== SCENE 3 ===== -->
+    <section class="scene" data-scene="3" data-short="C and &gamma;" aria-labelledby="s3h" hidden>
+      <header class="scene-head"><span class="vnum">3</span><h2 id="s3h">Adjust C and &gamma;</h2></header>
+      <p class="mission">Smugglers hide in the middle of Imperial patrols, so no straight line works. Tune an RBF SVM and compare <b>training</b> with <b>held-out</b> accuracy.</p>
+      <div class="stage">
+        <div class="viz">
+          <div class="tag tag-trained">RBF SVM, refitted on this page for every setting</div>
+          <svg class="board" id="plot3" role="img" aria-label="Nonlinear training ships with the RBF SVM boundary."></svg>
+          <ul class="legend" data-keys="rebel imperial sv boundary edgesThin"></ul>
+          <div class="controls">
+            <div class="slider"><label for="c3"><span>C: penalty on violations</span><b class="num" id="c3v"></b></label><input type="range" id="c3" min="0" max="5" step="1"></div>
+            <div class="slider"><label for="g3"><span>&gamma;: how local similarity is</span><b class="num" id="g3v"></b></label><input type="range" id="g3" min="0" max="6" step="1"></div>
+            <div class="btn-row">
+              <button type="button" class="chip" data-preset="1,0">Underfit</button>
+              <button type="button" class="chip" data-preset="2,2">Balanced</button>
+              <button type="button" class="chip" data-preset="5,6">Overfit</button>
+            </div>
+          </div>
+        </div>
+        <div class="notes">
+          <div class="readout" id="read3" aria-live="polite"></div>
+          <div class="eq-card">
+            <div class="tex-block" data-tex="K(\mathbf{x},\mathbf{x}') = \exp\!\big(-\gamma\,\lVert\mathbf{x}-\mathbf{x}'\rVert^2\big)"></div>
+            <div class="tex-block" data-tex="f(\mathbf{x}) = \sum_{n} \alpha_n y_n K(\mathbf{x}_n, \mathbf{x}) + b,\quad 0\le\alpha_n\le C"></div>
+            <dl class="defs">
+              <dt><span class="tex" data-tex="K"></span></dt><dd>similarity between two ships: 1 when identical, near 0 when far apart.</dd>
+              <dt><span class="tex" data-tex="\gamma"></span></dt><dd>larger &rArr; similarity fades faster &rArr; each ship influences only a small bubble.</dd>
+              <dt><span class="tex" data-tex="C"></span></dt><dd>larger &rArr; training mistakes cost more &rArr; the boundary bends to fit them.</dd>
+            </dl>
+          </div>
+          <p class="plain"><b>What to look for.</b> <i>Underfit</i>: a blunt boundary, both accuracies low. <i>Overfit</i>: tiny islands around single ships, training accuracy near 100% but held-out accuracy drops.</p>
+          <details class="why">
+            <summary>Show the math</summary>
+            <div class="why-body" id="math3"></div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================== SCENE 4 ===== -->
+    <section class="scene" data-scene="4" data-short="Probability" aria-labelledby="s4h" hidden>
+      <header class="scene-head"><span class="vnum">4</span><h2 id="s4h">Turn scores into probabilities</h2></header>
+      <p class="mission">Leia wants &ldquo;how likely is this ship Imperial?&rdquo;, not a score. Squash the score with a sigmoid, then <b>check whether the numbers can be trusted</b>.</p>
+      <div class="stage">
+        <div class="viz">
+          <div class="tag tag-trained">Linear SVM (C = 0.03) + Platt fit, both on this page</div>
+          <svg class="chart" id="sig4" role="img" aria-label="Sigmoid curve mapping SVM score to probability, with validation ships as ticks at 0 and 1."></svg>
+          <div class="controls">
+            <div class="slider"><label for="a4"><span>slope <span class="tex" data-tex="a"></span></span><b class="num" id="a4v"></b></label><input type="range" id="a4" min="0" max="6" step="0.05"></div>
+            <div class="slider"><label for="b4"><span>shift <span class="tex" data-tex="b"></span></span><b class="num" id="b4v"></b></label><input type="range" id="b4" min="-3" max="3" step="0.05"></div>
+            <div class="btn-row">
+              <button type="button" class="btn btn-quiet" id="raw4">Plain sigmoid (a = 1, b = 0)</button>
+              <button type="button" class="btn btn-next" id="fit4">Fit a, b on validation ships</button>
+            </div>
+          </div>
+        </div>
+        <div class="notes">
+          <div class="eq-card">
+            <div class="tex-block" data-tex="p(\text{Imperial}\mid\mathbf{x}) = \sigma\big(a\,f(\mathbf{x}) + b\big),\quad \sigma(t)=\frac{1}{1+e^{-t}}"></div>
+            <dl class="defs">
+              <dt><span class="tex" data-tex="f(\mathbf{x})"></span></dt><dd>the SVM score (horizontal axis, left).</dd>
+              <dt><span class="tex" data-tex="a,\ b"></span></dt><dd>slope and shift, learned by <b>Platt scaling</b> from a separate <b>validation</b> set (300 ships the SVM never trained on).</dd>
+            </dl>
+          </div>
+          <svg class="chart" id="rel4" role="img" aria-label="Calibration plot on 800 test ships: predicted probability against actual fraction Imperial."></svg>
+          <div class="readout" id="read4" aria-live="polite"></div>
+          <p class="plain"><b>Calibrated</b> means: of ships assigned 80%, about 80% really are Imperial. A sigmoid always outputs a number between 0 and 1, but that alone does <b>not</b> make it calibrated. Press &ldquo;Plain sigmoid&rdquo; and look at the plot.</p>
+          <details class="why">
+            <summary>Show the math</summary>
+            <div class="why-body" id="math4"></div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================== SCENE 5 ===== -->
+    <section class="scene" data-scene="5" data-short="SVR" aria-labelledby="s5h" hidden>
+      <header class="scene-head"><span class="vnum">5</span><h2 id="s5h">Predict fuel use with SVR</h2></header>
+      <p class="mission">Same idea, new job: predict fuel use from cargo mass. Errors smaller than <span class="tex" data-tex="\varepsilon"></span> are <b>free</b>. Click a reading to see its loss.</p>
+      <div class="stage">
+        <div class="viz">
+          <div class="tag tag-trained">RBF support vector regression, refitted on this page</div>
+          <svg class="chart" id="svr5" role="img" aria-label="Fuel readings, the SVR prediction curve, and the epsilon tube."></svg>
+          <ul class="legend" data-keys="reading svpt curve tube"></ul>
+          <div class="controls">
+            <div class="slider"><label for="e5"><span>tube half-width <span class="tex" data-tex="\varepsilon"></span> (tonnes)</span><b class="num" id="e5v"></b></label><input type="range" id="e5" min="0" max="1.5" step="0.05"></div>
+          </div>
+        </div>
+        <div class="notes">
+          <div class="eq-card">
+            <div class="tex-block" data-tex="\ell_\varepsilon = \max\big(0,\ |y - f(x)| - \varepsilon\big)"></div>
+            <div class="tex-block" data-tex="f(x) = \sum_n \theta_n K(x_n, x) + b,\quad \theta_n = \alpha_n - \alpha_n^*"></div>
+            <dl class="defs">
+              <dt><span class="tex" data-tex="y"></span></dt><dd>actual fuel used; <span class="tex" data-tex="f(x)"></span> the predicted amount (white curve).</dd>
+              <dt><span class="tex" data-tex="\varepsilon"></span></dt><dd>half-width of the shaded tube: the error we ignore.</dd>
+              <dt><span class="tex" data-tex="\theta_n"></span></dt><dd>reading <i>n</i>&rsquo;s weight. <b>Positive</b> on or above the tube&rsquo;s top edge, <b>negative</b> on or below its bottom edge, 0 strictly inside.</dd>
+            </dl>
+          </div>
+          <div class="readout" id="read5" aria-live="polite"></div>
+          <p class="plain"><b>Why sparse?</b> Readings strictly inside the tube have zero loss and <span class="tex" data-tex="\theta_n = 0"></span>, so they drop out of <span class="tex" data-tex="f(x)"></span>. Widen the tube and more readings fall inside.</p>
+          <details class="why">
+            <summary>Show the math</summary>
+            <div class="why-body">
+              <p>SVR minimizes <span class="tex" data-tex="\tfrac12\lVert\mathbf{w}\rVert^2 + C\sum_n \ell_\varepsilon(y_n, f(x_n))"></span>. Each reading gets two dual variables: <span class="tex" data-tex="\alpha_n"></span> for &ldquo;above the tube&rdquo; and <span class="tex" data-tex="\alpha_n^*"></span> for &ldquo;below,&rdquo; both in <span class="tex" data-tex="[0, C]"></span>. When <span class="tex" data-tex="\varepsilon &gt; 0"></span> they are never both positive (a reading can&rsquo;t be above and below the tube at once); at <span class="tex" data-tex="\varepsilon = 0"></span> only their difference is determined.</p>
+              <div class="tex-block" data-tex="\max_{\alpha,\alpha^*}\ -\tfrac12\sum_{n,m}\theta_n\theta_m K(x_n,x_m) - \varepsilon\sum_n(\alpha_n+\alpha_n^*) + \sum_n y_n\theta_n"></div>
+              <p>subject to <span class="tex" data-tex="\sum_n \theta_n = 0"></span>. Here <span class="tex" data-tex="C = 10"></span> and <span class="tex" data-tex="K(x,x')=e^{-0.25(x-x')^2}"></span>.</p>
+              <p class="flag"><b>Sign check.</b> Some summaries write the SVR prediction as <span class="tex" data-tex="\sum_n \alpha_n K(x_n,x)"></span> with <span class="tex" data-tex="\alpha_n\ge0"></span>. That is wrong: the coefficient is the difference <span class="tex" data-tex="\alpha_n-\alpha_n^*"></span> and is negative for readings below the tube. Click one to see it.</p>
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================================================== SCENE 6 ===== -->
+    <section class="scene" data-scene="6" data-short="Compare" aria-labelledby="s6h" hidden>
+      <header class="scene-head"><span class="vnum">6</span><h2 id="s6h">Which training examples does each model keep?</h2></header>
+      <p class="mission">All of these predict with <span class="tex" data-tex="f(\mathbf{x}) = \sum_n w_n K(\mathbf{x}_n,\mathbf{x}) + b"></span>. They differ in how many <span class="tex" data-tex="w_n"></span> end up nonzero, and in what else they tell you.</p>
+      <div class="cmp-wrap recap">
+        <table>
+          <thead><tr><th>Model</th><th>Training examples used to predict</th><th>How</th><th>Uncertainty?</th></tr></thead>
+          <tbody>
+            <tr><td>Kernel ridge regression</td><td>generally <b>all</b> of them</td><td>squared loss + <span class="tex" data-tex="\ell_2"></span> penalty; every <span class="tex" data-tex="w_n"></span> is usually nonzero</td><td>no</td></tr>
+            <tr><td>SVM / SVR</td><td>the <b>support vectors</b> only</td><td>hinge or <span class="tex" data-tex="\varepsilon"></span>-insensitive loss is flat, so <span class="tex" data-tex="\alpha_n=0"></span> for easy points (<span id="cmpSv"></span>)</td><td>no (scores; probabilities need Platt)</td></tr>
+            <tr><td>L1VM</td><td>a subset</td><td><span class="tex" data-tex="\ell_1"></span> penalty <span class="tex" data-tex="\lambda\sum_n|w_n|"></span> pushes many weights to exactly 0</td><td>no</td></tr>
+            <tr><td>RVM</td><td>the &ldquo;relevance vectors,&rdquo; often few</td><td>Bayesian: each <span class="tex" data-tex="w_n"></span> gets its own prior variance; many are learned to be 0</td><td>yes, though it can be overconfident far from the data</td></tr>
+            <tr><td>Gaussian process</td><td><b>all</b> of them</td><td>a distribution over functions, conditioned on the data</td><td>yes: a predictive mean <b>and</b> variance at every <span class="tex" data-tex="\mathbf{x}"></span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="flag">
+        <p><b>Two common misstatements</b> worth flagging if your notes contain them:</p>
+        <p>1. &ldquo;Only misclassified points are penalized.&rdquo; No: a correctly classified point <b>inside the margin</b> (<span class="tex" data-tex="0&lt;yf&lt;1"></span>) still has positive hinge loss and <span class="tex" data-tex="\alpha_n=C"></span>. Scene&nbsp;2&rsquo;s Y-wing Gray is one.</p>
+        <p>2. &ldquo;SVR coefficients are nonnegative.&rdquo; No: <span class="tex" data-tex="\theta_n=\alpha_n-\alpha_n^*"></span> takes either sign (scene&nbsp;5).</p>
+      </div>
+      <p class="plain"><b>About this page.</b> The ships and fuel readings are synthetic. Every boundary, curve, support vector, accuracy and Platt fit shown is computed on the page by an SMO solver (LIBSVM&rsquo;s method), not drawn by hand. The comparison table is a summary, not a simulation.</p>
+    </section>
+
+    <footer class="scene-nav">
+      <button type="button" class="btn" id="prev">&larr; Back</button>
+      <span class="scene-count" id="sceneCount"></span>
+      <button type="button" class="btn btn-quiet" id="reset">Reset scene</button>
+      <button type="button" class="btn btn-next" id="next">Next &rarr;</button>
+    </footer>
+
+  </main>
+
+  <footer class="foot">
+    <p>
+      Murphy, <i>Probabilistic Machine Learning: An Introduction</i>, &sect;17.3.5&ndash;17.4 (SVM probabilities,
+      the hinge loss, choosing C and the kernel, SVM regression, sparse vector machines). Follows module 11,
+      <a href="../svm/" style="color:inherit">The Widest Corridor</a>. A fan-made teaching story; characters and ships belong to their owners.
+    </p>
+  </footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
