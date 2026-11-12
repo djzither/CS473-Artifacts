@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Boosting Through the Highstorm</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Gradient boosting and XGBoost round by round, told as Dalinar's engineers forecasting how many highstorms each bridge on the Shattered Plains will survive. Invented data, plain English first, equations second.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;0,800;1,400&family=IBM+Plex+Mono:wght@400;500;600&family=Marcellus&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="storm">
+  <div class="storm-inner">
+    <p class="eyebrow">CS 473 &middot; Module 15 &middot; gradient boosting &amp; XGBoost &middot; Murphy &sect;18.5</p>
+    <h1>Boosting Through the Highstorm</h1>
+    <p class="lede">
+      Dalinar wants to know how many highstorms each bridge on the Shattered Plains will survive before it has to be rebuilt.
+      No single engineer forecasts it well. So he lets them take turns: each new engineer looks only at <b>where the forecast
+      so far went wrong</b> and proposes a small correction. That is gradient boosting.
+    </p>
+    <p class="spoiler">No spoilers beyond <i>The Way of Kings</i>.</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="setup" aria-labelledby="ledgerH">
+    <div class="ledger card">
+      <div class="card-head">
+        <h2 id="ledgerH">The bridge ledger</h2>
+        <span class="invented">Invented for teaching &middot; not from the books</span>
+      </div>
+      <p class="small">Twelve made-up bridges. Three things Dalinar&rsquo;s engineers can measure, and one thing they want to predict.</p>
+      <div class="table-scroll">
+        <table class="data" id="ledger"></table>
+      </div>
+      <dl class="feat-key">
+        <div><dt>Age</dt><dd>months since the bridge was built</dd></div>
+        <div><dt>Strength</dt><dd>timber and lashings, 1 (green softwood) to 10 (seasoned, bronze-banded)</dd></div>
+        <div><dt>Exposure</dt><dd>how squarely it faces the storm&rsquo;s leading edge from the east, 1 to 10</dd></div>
+        <div><dt>Storms</dt><dd>highstorms it survived before it had to be rebuilt: the <b>target</b> <span class="tex" data-tex="y"></span></dd></div>
+      </dl>
+    </div>
+
+    <div class="glossary card" aria-labelledby="glossH">
+      <h2 id="glossH">Machine-learning words, in plain English</h2>
+      <dl>
+        <div><dt>prediction <span class="tex" data-tex="F(x)"></span></dt><dd>the forecast so far: how many storms we think a bridge will last</dd></div>
+        <div><dt>loss <span class="tex" data-tex="\ell"></span></dt><dd>a penalty for a bad forecast. Here: half the squared miss</dd></div>
+        <div><dt>residual</dt><dd>what happened minus what we forecast. The miss, with a sign</dd></div>
+        <div><dt>gradient <span class="tex" data-tex="g"></span></dt><dd>the slope of the loss: which way, and how hard, to nudge a forecast to lower the penalty</dd></div>
+        <div><dt>hessian <span class="tex" data-tex="h"></span></dt><dd>how fast that slope changes: how quickly a nudge stops paying off</dd></div>
+        <div><dt>weak learner</dt><dd>one tiny decision tree, a couple of yes/no questions. One engineer</dd></div>
+        <div><dt>learning rate <span class="tex" data-tex="\eta"></span></dt><dd>how much of each correction we actually accept</dd></div>
+        <div><dt>regularization</dt><dd>deliberate caution: making the model pay for being bold or complicated</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <main class="console" id="console">
+
+    <div class="modes" role="tablist" aria-label="Mode">
+      <button type="button" role="tab" class="mode" id="tab-gb" data-mode="gb" aria-controls="panel">
+        <span class="mode-num">1</span><span><b>Gradient boosting</b><small>round by round</small></span></button>
+      <button type="button" role="tab" class="mode" id="tab-xgb" data-mode="xgb" aria-controls="panel">
+        <span class="mode-num">2</span><span><b>XGBoost</b><small>the same rounds, with brakes</small></span></button>
+    </div>
+
+    <div class="panel" id="panel" role="tabpanel" aria-labelledby="tab-gb">
+
+      <div class="controls">
+        <div class="player" role="group" aria-label="Training rounds">
+          <button type="button" class="btn" id="back">&larr; Back</button>
+          <button type="button" class="btn btn-main" id="next">Next round &rarr;</button>
+          <button type="button" class="btn" id="play" aria-pressed="false">&#9654; Play</button>
+          <button type="button" class="btn btn-quiet" id="reset">Reset</button>
+          <label class="round-ctl" for="round">
+            <span class="round-lab">Round <b class="num" id="roundNum">0</b> <span class="muted">of 20</span></span>
+            <input type="range" id="round" min="0" max="20" step="1" value="0">
+          </label>
+        </div>
+        <div class="knobs">
+          <label class="knob" for="eta"><span>Learning rate <span class="tex" data-tex="\eta"></span> <b class="num" id="etaVal"></b></span>
+            <input type="range" id="eta" min="0.1" max="1" step="0.05" value="0.3"></label>
+          <div class="knob"><span>Tree depth</span>
+            <div class="seg" role="group" aria-label="Tree depth">
+              <button type="button" class="seg-btn" data-depth="1" aria-pressed="false">1 question</button>
+              <button type="button" class="seg-btn" data-depth="2" aria-pressed="true">2 levels</button>
+            </div>
+          </div>
+          <label class="knob xgb-only" for="lambda"><span>Caution about small groups <span class="tex" data-tex="\lambda"></span> <b class="num" id="lambdaVal"></b></span>
+            <input type="range" id="lambda" min="0" max="10" step="0.5" value="1"></label>
+          <label class="knob xgb-only" for="gamma"><span>Price of a new question <span class="tex" data-tex="\gamma"></span> <b class="num" id="gammaVal"></b></span>
+            <input type="range" id="gamma" min="0" max="30" step="1" value="2"></label>
+          <button type="button" class="btn btn-quiet xgb-only" id="zeroBrakes">Set &lambda; = &gamma; = 0 (matches mode 1)</button>
+        </div>
+      </div>
+
+      <p class="explain" id="explain" aria-live="polite"></p>
+
+      <div class="row-main">
+        <section class="card" aria-labelledby="chartH">
+          <div class="card-head"><h3 id="chartH">Forecast vs. what happened</h3><span class="hint">click a bridge to follow it</span></div>
+          <svg class="bars" id="bars" viewBox="0 0 640 330" role="img" aria-label="For each bridge: the forecast as a bar, the real outcome as a gem, and the miss between them"></svg>
+          <div class="legend">
+            <span><i class="sw sw-bar"></i>forecast after this round</span>
+            <span><i class="sw sw-ghost"></i>forecast before</span>
+            <span><i class="gem-key"></i>storms it really survived</span>
+            <span><i class="sw sw-pos"></i>lasted longer than forecast</span>
+            <span><i class="sw sw-neg"></i>failed sooner</span>
+          </div>
+        </section>
+
+        <section class="card" aria-labelledby="treeH">
+          <div class="card-head"><h3 id="treeH">This round&rsquo;s engineer</h3><span class="hint" id="treeHint">click a question to see every split it beat</span></div>
+          <div class="tree-scroll"><svg class="tree" id="tree" viewBox="0 0 620 300" role="img" aria-label="The small tree fitted this round"></svg></div>
+          <p class="path" id="path"></p>
+        </section>
+      </div>
+
+      <section class="steps" aria-label="This round, step by step" id="steps"></section>
+
+      <div class="row-second">
+        <section class="card" aria-labelledby="candH">
+          <div class="card-head"><h3 id="candH">How the question was chosen</h3><span class="hint" id="candHint"></span></div>
+          <p class="small" id="candNote"></p>
+          <div class="table-scroll"><table class="data cand" id="cand"></table></div>
+        </section>
+        <section class="card" aria-labelledby="lossH">
+          <div class="card-head"><h3 id="lossH">Typical miss by round</h3><span class="hint" id="lossHint"></span></div>
+          <svg class="lossc" id="lossc" viewBox="0 0 460 240" role="img" aria-label="Typical miss in highstorms after each round"></svg>
+          <p class="small" id="lossNote"></p>
+        </section>
+      </div>
+
+      <section class="card" aria-labelledby="roundTableH">
+        <div class="card-head"><h3 id="roundTableH">Every bridge this round</h3><span class="hint">click a row to follow that bridge</span></div>
+        <div class="table-scroll"><table class="data rt" id="rt"></table></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="foot">
+    <p>The bridges, their numbers and their names are invented for teaching. Dalinar, the Shattered Plains and highstorms
+      come from Brandon Sanderson&rsquo;s <i>The Way of Kings</i>; this page is an unofficial study aid and is not endorsed
+      by the author or publisher. Method: Murphy, <i>Probabilistic Machine Learning: An Introduction</i>, &sect;18.5
+      (boosting, gradient boosting); Chen &amp; Guestrin, &ldquo;XGBoost: A Scalable Tree Boosting System,&rdquo; KDD 2016.
+      Every tree, gain and forecast here is computed in your browser.</p>
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="model.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
