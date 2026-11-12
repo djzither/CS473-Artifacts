@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>How Tree Ensembles Learn</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Step through real training rounds of a random forest, forward stagewise boosting, least squares boosting, AdaBoost and LogitBoost on the Titanic passenger list, and see each new tree, its split rules and how it changes the ensemble.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Saira+Condensed:wght@600;700;800&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 14 &middot; Murphy &sect;18.4&ndash;18.5.4</p>
+    <h1>How Tree Ensembles Learn</h1>
+    <p class="lede">
+      Four ways to combine small trees, plus the recipe behind three of them, all trained on the same 500 Titanic passengers. Step through the rounds one tree at
+      a time. Each round shows the new tree, the rule it learned, and what it changed for the passenger you are following.
+    </p>
+  </header>
+
+  <section class="intro" aria-labelledby="introH">
+    <div class="intro-text">
+      <h2 id="introH">Two ways to build a committee of trees</h2>
+      <p>
+        A <b>random forest</b> grows many deep-ish trees <b>independently</b>, each on a different bootstrap sample and with
+        a random subset of features at each split, then lets them vote. The trees never see each other.
+      </p>
+      <p>
+        <b>Boosting</b> grows trees <b>one after another</b>. Each new tree is a weak learner fitted to whatever the trees
+        before it still get wrong, and the model is their weighted sum
+        <span class="tex" data-tex="f(\boldsymbol x)=\sum_{m=1}^{M}\beta_m F_m(\boldsymbol x)"></span>.
+        No single shallow tree is accurate. Their sum is.
+      </p>
+      <p>
+        <b>Forward stagewise additive modeling</b> is the recipe all three boosting tabs follow. It never revisits old trees.
+        At round <span class="tex" data-tex="m"></span> it adds the single tree and step size that lower the training loss
+        the most, and keeps everything else fixed:
+      </p>
+      <div class="recipe">
+        <ol>
+          <li><span class="step-lab">Start</span> <span class="tex" data-tex="f_0(\boldsymbol x)=\arg\min_{c}\sum_i \ell(y_i,c)"></span></li>
+          <li><span class="step-lab">Fit</span> <span class="tex" data-tex="(\beta_m,\boldsymbol\theta_m)=\arg\min_{\beta,\boldsymbol\theta}\sum_{i=1}^{N}\ell\big(y_i,\;f_{m-1}(\boldsymbol x_i)+\beta F(\boldsymbol x_i;\boldsymbol\theta)\big)"></span></li>
+          <li><span class="step-lab">Add</span> <span class="tex" data-tex="f_m(\boldsymbol x)=f_{m-1}(\boldsymbol x)+\beta_m F_m(\boldsymbol x)"></span></li>
+        </ol>
+        <p class="recipe-note">Choosing the loss <span class="tex" data-tex="\ell"></span> gives a specific method:
+          squared loss gives <b>least squares boosting</b>, exponential loss gives <b>AdaBoost</b>, and logistic loss gives <b>LogitBoost</b>.</p>
+      </div>
+    </div>
+
+    <aside class="data-card" aria-labelledby="dataH">
+      <h3 id="dataH">The passenger list</h3>
+      <dl class="facts">
+        <div><dt>Rows</dt><dd><span class="num">714</span> real passengers, the ones with a recorded age (of <span class="num">891</span>)</dd></div>
+        <div><dt>Split</dt><dd><span class="num">500</span> training / <span class="num">214</span> test, shuffled with seed <span class="num">473</span>. Every tab uses the same split.</dd></div>
+        <div><dt>Features</dt><dd>sex, passenger class (1st&ndash;3rd), age in years, fare in pounds</dd></div>
+        <div><dt>Label</dt><dd>survived the sinking (<span class="c-surv">1</span>) or died (<span class="c-died">0</span>). <span id="baseRate"></span></dd></div>
+        <div><dt>Trees</dt><dd>depth &le; 2 (up to 4 leaves), at least 5 passengers per leaf, 50 rounds per method</dd></div>
+      </dl>
+      <p class="source">Source: Kaggle &ldquo;Titanic: Machine Learning from Disaster&rdquo; <code>train.csv</code>, compiled from
+        Encyclopedia Titanica, via the <a href="https://github.com/datasciencedojo/datasets/blob/master/titanic.csv" target="_blank" rel="noopener">datasciencedojo/datasets</a> mirror.
+        Rows with a missing age are dropped. Nothing else is changed.</p>
+    </aside>
+  </section>
+
+  <main class="console" id="console">
+
+    <div class="tabs" role="tablist" aria-label="Method">
+      <button type="button" role="tab" class="tab" id="tab-rf" data-method="rf" aria-controls="panel"><span class="tab-kind">bagging</span>Random Forest</button>
+      <button type="button" role="tab" class="tab" id="tab-fsam" data-method="fsam" aria-controls="panel"><span class="tab-kind">the recipe</span>Forward Stagewise</button>
+      <button type="button" role="tab" class="tab" id="tab-ls" data-method="ls" aria-controls="panel"><span class="tab-kind">squared loss</span>Least Squares Boosting</button>
+      <button type="button" role="tab" class="tab" id="tab-ada" data-method="ada" aria-controls="panel"><span class="tab-kind">exponential loss</span>AdaBoost</button>
+      <button type="button" role="tab" class="tab" id="tab-logit" data-method="logit" aria-controls="panel"><span class="tab-kind">logistic loss</span>LogitBoost</button>
+    </div>
+
+    <div class="panel" id="panel" role="tabpanel" aria-labelledby="tab-rf">
+
+      <div class="player" role="group" aria-label="Training rounds">
+        <div class="player-btns">
+          <button type="button" class="btn" id="back" aria-label="Previous round">&larr; Back</button>
+          <button type="button" class="btn btn-play" id="play" aria-pressed="false">&#9654; Play</button>
+          <button type="button" class="btn" id="next" aria-label="Next round">Next &rarr;</button>
+          <button type="button" class="btn btn-quiet" id="reset">Reset</button>
+        </div>
+        <label class="round-ctl" for="round">
+          <span class="round-lab">Round <b class="num" id="roundNum">1</b> <span class="muted">of <span class="num" id="roundMax">50</span></span></span>
+          <input type="range" id="round" min="1" max="50" step="1" value="1">
+        </label>
+        <div class="fsam-pick" id="fsamPick" hidden>
+          <span class="pick-lab">Show the recipe on</span>
+          <div class="seg" role="group" aria-label="Boosting run shown">
+            <button type="button" class="seg-btn" data-run="ls" aria-pressed="false">Least squares</button>
+            <button type="button" class="seg-btn" data-run="ada" aria-pressed="true">AdaBoost</button>
+            <button type="button" class="seg-btn" data-run="logit" aria-pressed="false">LogitBoost</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="explain" id="explain" aria-live="polite"></p>
+
+      <div class="grid-main">
+        <section class="card tree-card" aria-labelledby="treeH">
+          <div class="card-head">
+            <h3 id="treeH">New tree <span class="num" id="treeNum"></span></h3>
+            <span class="hint" id="treeHint"></span>
+          </div>
+          <div class="tree-scroll">
+            <svg class="tree" id="treeSvg" viewBox="0 0 760 360" role="img" aria-label="The tree added this round"></svg>
+          </div>
+          <p class="path-line" id="pathLine"></p>
+        </section>
+
+        <section class="card pax-card" aria-labelledby="paxH">
+          <div class="card-head">
+            <h3 id="paxH">Following</h3>
+            <label class="pax-pick" for="paxSelect"><span class="sr">Choose a passenger</span>
+              <select id="paxSelect"></select>
+            </label>
+          </div>
+          <div id="paxBody"></div>
+        </section>
+      </div>
+
+      <div class="grid-second">
+        <section class="card chart-card" aria-labelledby="chartH">
+          <div class="card-head"><h3 id="chartH">Accuracy by round</h3><span class="hint" id="chartHint"></span></div>
+          <svg class="chart" id="chartSvg" viewBox="0 0 520 230" role="img" aria-label="Training and test accuracy by round"></svg>
+          <div class="fsam-only" id="fsamCharts" hidden>
+            <div class="card-head sub"><h3>Training loss by round</h3></div>
+            <svg class="chart" id="lossSvg" viewBox="0 0 520 200" role="img" aria-label="Training loss by round"></svg>
+          </div>
+        </section>
+
+        <section class="card crowd-card" aria-labelledby="crowdH">
+          <div class="card-head">
+            <h3 id="crowdH">All 500 training passengers</h3>
+            <div class="seg" role="group" aria-label="Colour passengers by">
+              <button type="button" class="seg-btn" data-crowd="pred" aria-pressed="true">Prediction</button>
+              <button type="button" class="seg-btn" data-crowd="signal" aria-pressed="false" id="crowdSignalBtn">Learning signal</button>
+            </div>
+          </div>
+          <div class="crowd-scroll">
+            <svg class="crowd" id="crowdSvg" role="img" aria-label="Every training passenger as one square, grouped by sex and class, sorted by age"></svg>
+          </div>
+          <div class="legend" id="crowdLegend"></div>
+        </section>
+      </div>
+
+      <section class="card table-card" aria-labelledby="tableH">
+        <div class="card-head">
+          <h3 id="tableH">Learning signal</h3>
+          <div class="seg" role="group" aria-label="Which passengers to list">
+            <button type="button" class="seg-btn" data-rows="signal" aria-pressed="true">Strongest signal</button>
+            <button type="button" class="seg-btn" data-rows="sample" aria-pressed="false">Fixed sample</button>
+          </div>
+        </div>
+        <p class="table-note" id="tableNote"></p>
+        <div class="table-scroll">
+          <table class="sig" id="sigTable"></table>
+        </div>
+      </section>
+
+      <section class="card notes-card" aria-labelledby="notesH">
+        <h3 id="notesH">The method on this tab</h3>
+
+        <div class="notes" data-notes="rf">
+          <div class="eq-row">
+            <div><span class="eq-lab">bootstrap sample for tree m</span><div class="tex-block" data-tex="\mathcal D_m = N \text{ draws from } \mathcal D \text{ with replacement}"></div></div>
+            <div><span class="eq-lab">running vote</span><div class="tex-block" data-tex="\bar f_m(\boldsymbol x)=\frac1m\sum_{j=1}^{m}T_j(\boldsymbol x),\quad \hat y = \mathbb I\big(\bar f_m(\boldsymbol x)>\tfrac12\big)"></div></div>
+          </div>
+          <ul>
+            <li><b>Bagging</b> trains each tree on its own bootstrap sample. About 63% of passengers appear at least once, some two or three times. The rest are <b>out of bag</b> for that tree.</li>
+            <li><b>Random forest</b> adds one more source of variety. Each split may only choose from <b>2 of the 4 features</b>, drawn at random. The tree card lists both candidates and the best split each one offered. A strong feature such as sex cannot win every root.</li>
+            <li>The trees are <b>independent</b>. Tree <span class="tex" data-tex="m"></span> uses its own seed, so it is the same tree whether it is grown first, last or on a different machine. The round number only sets the playback order.</li>
+            <li>Each tree is grown by Gini impurity on its sample, using bootstrap counts as weights. Each leaf votes for its majority class. A tied vote counts as &ldquo;died&rdquo;.</li>
+          </ul>
+        </div>
+
+        <div class="notes" data-notes="fsam" hidden>
+          <div class="eq-row">
+            <div><span class="eq-lab">one stage</span><div class="tex-block" data-tex="f_m(\boldsymbol x)=f_{m-1}(\boldsymbol x)+\beta_m F_m(\boldsymbol x)"></div></div>
+            <div><span class="eq-lab">the step size is a line search</span><div class="tex-block" data-tex="\beta_m=\arg\min_\beta \sum_i \ell\big(y_i,f_{m-1}(\boldsymbol x_i)+\beta F_m(\boldsymbol x_i)\big)"></div></div>
+          </div>
+          <table class="map">
+            <thead><tr><th>Run</th><th>Loss <span class="tex" data-tex="\ell(y,f)"></span></th><th>How <span class="tex" data-tex="F_m"></span> is fitted</th><th><span class="tex" data-tex="\beta_m"></span></th></tr></thead>
+            <tbody>
+              <tr><td>Least squares</td><td><span class="tex" data-tex="(y-f)^2"></span></td><td>regression tree on residuals <span class="tex" data-tex="y_i-f_{m-1}(\boldsymbol x_i)"></span></td><td><span class="tex" data-tex="1"></span> (exact line search)</td></tr>
+              <tr><td>AdaBoost</td><td><span class="tex" data-tex="e^{-\tilde y f}"></span></td><td>classifier on weights <span class="tex" data-tex="\omega_i\propto e^{-\tilde y_i f_{m-1}(\boldsymbol x_i)}"></span></td><td><span class="tex" data-tex="\tfrac12\log\frac{1-\mathrm{err}_m}{\mathrm{err}_m}"></span> (exact)</td></tr>
+              <tr><td>LogitBoost</td><td><span class="tex" data-tex="\log(1+e^{-2\tilde y f})"></span></td><td>weighted regression tree on working responses <span class="tex" data-tex="z_i"></span></td><td><span class="tex" data-tex="\tfrac12"></span> (a Newton step, not exact)</td></tr>
+            </tbody>
+          </table>
+          <ul>
+            <li>The chart under &ldquo;Line search&rdquo; plots the training loss for every step size <span class="tex" data-tex="\beta"></span> along the new tree. The dot is the step the method took. The ring is the exact minimizer. They coincide for least squares and AdaBoost. LogitBoost uses a fixed <span class="tex" data-tex="\tfrac12"></span> instead of searching, so its dot can sit beside the ring.</li>
+            <li>Earlier trees are frozen. Stagewise means each stage is solved once and never revisited. That is why the training loss can only go down, or stay flat, from one round to the next when the line search is exact.</li>
+          </ul>
+        </div>
+
+        <div class="notes" data-notes="ls" hidden>
+          <div class="eq-row">
+            <div><span class="eq-lab">residual</span><div class="tex-block" data-tex="r_{im}=y_i-f_{m-1}(\boldsymbol x_i)"></div></div>
+            <div><span class="eq-lab">fit and add</span><div class="tex-block" data-tex="F_m=\arg\min_F\sum_i\big(r_{im}-F(\boldsymbol x_i)\big)^2,\quad f_m=f_{m-1}+F_m"></div></div>
+          </div>
+          <ul>
+            <li>With squared loss, the stagewise objective is <span class="tex" data-tex="\sum_i (r_{im}-\beta F(\boldsymbol x_i))^2"></span>: fit a regression tree to the <b>residuals</b>. Each leaf predicts the mean residual of its passengers, which makes the best <span class="tex" data-tex="\beta_m"></span> exactly 1.</li>
+            <li><span class="tex" data-tex="f_0"></span> is the training survival rate. Survival <span class="tex" data-tex="y\in\{0,1\}"></span> is treated as a number, so <span class="tex" data-tex="f"></span> is a survival score and the prediction is &ldquo;survived&rdquo; when <span class="tex" data-tex="f>0.5"></span>.</li>
+            <li>A passenger the model already fits well has a residual near 0 and barely pulls on the next tree. Passengers it gets badly wrong have residuals near &plusmn;1 and dominate the next split.</li>
+          </ul>
+        </div>
+
+        <div class="notes" data-notes="ada" hidden>
+          <div class="eq-row">
+            <div><span class="eq-lab">weights from the current model</span><div class="tex-block" data-tex="\omega_{im}\propto e^{-\tilde y_i f_{m-1}(\boldsymbol x_i)},\quad \tilde y_i\in\{-1,+1\}"></div></div>
+            <div><span class="eq-lab">weighted error and step</span><div class="tex-block" data-tex="\mathrm{err}_m=\sum_i\omega_{im}\,\mathbb I(\tilde y_i\ne F_m(\boldsymbol x_i)),\quad \beta_m=\tfrac12\log\frac{1-\mathrm{err}_m}{\mathrm{err}_m}"></div></div>
+          </div>
+          <div class="tex-block" data-tex="\omega_{i,m+1}\propto\omega_{im}\,e^{-\beta_m\tilde y_iF_m(\boldsymbol x_i)}\quad(\times e^{\beta_m}\text{ if wrong},\ \times e^{-\beta_m}\text{ if right})"></div>
+          <ul>
+            <li>With exponential loss, the stagewise step separates into two parts: fit a <span class="tex" data-tex="\pm1"></span> classifier to <b>reweighted</b> passengers, then pick <span class="tex" data-tex="\beta_m"></span> in closed form. Weights are shown times <span class="num">500</span>, so an average passenger has weight 1.</li>
+            <li>Each tree is grown by weighted Gini, and each leaf outputs the weighted majority label, <span class="tex" data-tex="+1"></span> (survived) or <span class="tex" data-tex="-1"></span> (died).</li>
+            <li>After reweighting, the passengers this tree got wrong hold <b>exactly half</b> the total weight. The tree that was just added would score <span class="tex" data-tex="\mathrm{err}=0.5"></span> on the new weights, so the next tree is pushed to fix something else.</li>
+            <li>Murphy&rsquo;s AdaBoost.M1 uses <span class="tex" data-tex="\alpha_m=2\beta_m"></span>. The vote <span class="tex" data-tex="\operatorname{sign}f_M"></span> is the same.</li>
+          </ul>
+        </div>
+
+        <div class="notes" data-notes="logit" hidden>
+          <div class="eq-row">
+            <div><span class="eq-lab">probability, working response, weight</span><div class="tex-block" data-tex="\pi_i=\frac{1}{1+e^{-2f_{m-1}(\boldsymbol x_i)}},\quad z_i=\frac{y_i-\pi_i}{\pi_i(1-\pi_i)},\quad w_i=\pi_i(1-\pi_i)"></div></div>
+            <div><span class="eq-lab">fit and add</span><div class="tex-block" data-tex="F_m=\arg\min_F\sum_i w_i\big(z_i-F(\boldsymbol x_i)\big)^2,\quad f_m=f_{m-1}+\tfrac12F_m"></div></div>
+          </div>
+          <ul>
+            <li>Logistic loss <span class="tex" data-tex="\log(1+e^{-2\tilde y f})"></span> is the negative log likelihood of a logistic model, so <span class="tex" data-tex="f"></span> converts to a calibrated survival probability <span class="tex" data-tex="\pi"></span>. Exponential loss grows without bound on badly wrong points; this loss grows only linearly, so outliers pull less.</li>
+            <li>There is no closed form, so each round takes one <b>Newton step</b>: a weighted least-squares tree on the working response <span class="tex" data-tex="z"></span>. Passengers the model is unsure of (<span class="tex" data-tex="\pi\approx0.5"></span>) get the most weight, up to 0.25. Confident ones get almost none.</li>
+            <li>When <span class="tex" data-tex="\pi"></span> is near 0 or 1, <span class="tex" data-tex="z"></span> blows up. As Friedman, Hastie and Tibshirani recommend, it is clipped to <span class="tex" data-tex="[-4,4]"></span>.</li>
+          </ul>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="foot">
+    <p>
+      Murphy, <i>Probabilistic Machine Learning: An Introduction</i>, &sect;18.4 (random forests) and &sect;18.5&ndash;18.5.4
+      (boosting, forward stagewise additive modeling, least squares boosting, AdaBoost, LogitBoost). Every tree, weight,
+      residual and vote on this page is computed in your browser from the 500 training passengers. Data: Kaggle Titanic
+      <code>train.csv</code> (Encyclopedia Titanica), mirrored by datasciencedojo/datasets.
+    </p>
+  </footer>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="data.js"></script>
+<script src="model.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
