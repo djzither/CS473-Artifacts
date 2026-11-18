@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Two Kinds of 50/50</title>
+<meta name="description" content="BALD (Bayesian Active Learning by Disagreement) for an advanced ML class: two customer replies that are both 50/50 overall, but only one is worth a human label.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 16 &middot; Murphy &sect;19.4 &middot; Active learning</p>
+    <h1>Two Kinds of 50/50</h1>
+    <p class="lede">
+      Byld Blue&rsquo;s sales inbox gets more replies than anyone can read. Two models guess whether a reply means
+      <b>&ldquo;interested.&rdquo;</b> A human can label only a few replies. Both replies below come out at
+      <b>50% interested</b> once the two models are averaged. <b>BALD</b> (Bayesian Active Learning by Disagreement)
+      says only one of them is worth a human label.
+    </p>
+    <p class="def">
+      <b>Entropy</b> is uncertainty in bits:
+      <span class="tex" data-tex="H(p) = -p\log_2 p - (1-p)\log_2(1-p)"></span>, which is 0 when the answer is certain
+      and 1 bit for a coin flip (we take <span class="tex" data-tex="0\log 0 = 0"></span>).
+    </p>
+  </header>
+
+  <main>
+    <div class="pair" id="pair"></div>
+
+    <details class="why">
+      <summary>Show the mutual-information equations</summary>
+      <div class="why-body">
+        <p>Let <span class="tex" data-tex="m"></span> be which model is right, with weights <span class="tex" data-tex="\pi_m"></span> (here <span class="tex" data-tex="\pi_A=\pi_B=\tfrac12"></span>), and <span class="tex" data-tex="y"></span> the label. The averaged prediction is</p>
+        <div class="tex-block" data-tex="\bar p = \sum_m \pi_m\, p(y{=}1 \mid x, m)."></div>
+        <p>BALD is the mutual information between the label and the model:</p>
+        <div class="tex-block" data-tex="\text{BALD}(x) = I(y; m \mid x) = \underbrace{H\big[\bar p\big]}_{\text{entropy of the average}} - \underbrace{\sum_m \pi_m H\big[p(y\mid x,m)\big]}_{\text{average of the entropies}}"></div>
+        <p>Mutual information is symmetric, so the same number is the expected drop in uncertainty about the <b>model</b>:</p>
+        <div class="tex-block" data-tex="I(y; m \mid x) = H[\pi] - \sum_{y} p(y\mid x)\, H\big[\pi(\cdot \mid y)\big],\qquad \pi(m\mid y) = \frac{\pi_m\, p(y\mid x,m)}{\sum_{m'} \pi_{m'}\, p(y\mid x,m')}"></div>
+        <p>The first form is the entropy curve: it is concave, so the entropy of an average is at least the average of the entropies (Jensen). The second form is what the reveal buttons act out: each answer shifts the model weights, and BALD is that shift in bits, averaged over both answers.</p>
+      </div>
+    </details>
+
+    <section class="quiz" aria-labelledby="qh">
+      <h2 id="qh">Check yourself</h2>
+      <p class="q">Both replies are 50/50 overall. Which should you spend a human label on, and why?</p>
+      <div class="opts" role="radiogroup" aria-labelledby="qh">
+        <label class="opt"><input type="radio" name="q" value="a"> <span><b>Reply 1</b>: the models confidently disagree.</span></label>
+        <label class="opt"><input type="radio" name="q" value="b"> <span><b>Reply 2</b>: both models are unsure, so it is the hardest reply.</span></label>
+        <label class="opt"><input type="radio" name="q" value="c"> <span><b>Either one</b>: both are 50% interested, so a label is worth the same.</span></label>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-main" id="qCheck" disabled>Check my answer</button>
+        <button type="button" class="btn btn-quiet" id="qShow">Just show the explanation</button>
+      </div>
+      <div class="feedback" id="qFeedback" aria-live="polite"></div>
+      <div class="explain" id="qExplain" hidden>
+        <p><b>Label Reply 1.</b> Its BALD is about 0.919 bits; Reply 2&rsquo;s is 0.</p>
+        <p>In Reply 1 each model is nearly certain, but they are certain of <i>opposite</i> answers. Whatever the human says, one model gave it 99% and the other 1%, so the label settles which model to trust: the weights jump from 50/50 to 99/1.</p>
+        <p>In Reply 2 both models already say 50%. Either answer is exactly as likely under both, so the weights don&rsquo;t move and nothing is learned about which model is better. The uncertainty is <b>aleatoric</b> (noise in the reply itself), not <b>epistemic</b> (disagreement between models). Plain entropy cannot tell these apart, because both replies have <span class="tex" data-tex="H(\bar p)=1"></span> bit. BALD subtracts the part the models already expect to remain.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>Murphy, <i>Probabilistic Machine Learning: An Introduction</i>, &sect;19.4 (active learning, information-theoretic
+      acquisition); Houlsby et al. (2011), &ldquo;Bayesian Active Learning for Classification and Preference Learning.&rdquo;
+      Replies and model outputs are invented. Every number is computed in your browser.</p>
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="model.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

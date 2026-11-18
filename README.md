@@ -23,6 +23,7 @@ the deployed site on GitHub Pages.
 | ✅ | [`trees/`](trees/) — **Build a Decision Tree with LEGO** | Murphy §18.1–18.4: CART with bricks, Gini and the split score, greedy growth one gate at a time, regression leaves as means, bootstrap samples, random forests, majority votes and averages |
 | ✅ | [`ensembles/`](ensembles/) — **How Tree Ensembles Learn** | Murphy §18.4–18.5.4: random forests, forward stagewise additive modeling, least squares boosting, AdaBoost and LogitBoost, stepped round by round on real Titanic passengers |
 | ✅ | [`xgboost/`](xgboost/) — **Boosting Through the Highstorm** | Murphy §18.5: gradient boosting and XGBoost round by round with a *Way of Kings* bridge-forecasting story (invented data), residuals as negative gradients, learning rate, gain with λ and γ, leaf weights −G/(H+λ), pruning |
+| ✅ | [`bald/`](bald/) — **Two Kinds of 50/50** | Murphy §19.4: BALD for active learning, confident disagreement vs. shared uncertainty at the same 50% average, entropy of the average minus average of the entropies on the binary entropy curve, Bayesian updates of model weights after a revealed label |
 | ☐ | Uncorrelated ≠ independent | ρ ≈ 0 for a Gaussian blob vs. Y = X², side by side |
 | ☐ | Simpson's paradox | Iris sepal data with a "merge species" toggle |
 | ☐ | Mahalanobis vs. Euclidean | drop a test point, compare both distances |
