@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Manifold Learning Playground</title>
+<meta name="description" content="Manifold learning for an advanced ML class: curved surfaces and tangent planes, the manifold hypothesis on a handwritten digit, geodesic vs. Euclidean distance, and PCA, kernel PCA, Isomap, LLE, Laplacian eigenmaps and t-SNE running live in the browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<nav class="toc" aria-label="Sections">
+  <div class="toc-in">
+    <a href="#s1"><b>1</b> Manifolds</a>
+    <a href="#s2"><b>2</b> Hypothesis</a>
+    <a href="#s3"><b>3</b> Geodesics</a>
+    <a href="#s4"><b>4</b> Playground</a>
+    <a href="#s5"><b>5</b> The math</a>
+    <a href="#s6"><b>6</b> Quiz</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 17 &middot; Murphy &sect;20.4 &middot; Manifold learning</p>
+    <h1>Manifold Learning Playground</h1>
+    <p class="lede">
+      High-dimensional data often has only a few real degrees of freedom. A photo has thousands of pixels, but the photos
+      you actually see vary in a handful of ways. <b>Manifold learning</b> tries to recover those few coordinates: it finds a
+      low-dimensional map <span class="tex" data-tex="z_n \in \mathbb{R}^L"></span> for data <span class="tex" data-tex="x_n \in \mathbb{R}^D"></span>,
+      <span class="tex" data-tex="L \ll D"></span>, that keeps the shape of the curved surface the data lies on.
+    </p>
+    <p class="def">
+      Order of play: build intuition in sections 1&ndash;3, run the real algorithms in section 4, read the objectives
+      in section 5, then check yourself in section 6. All the math on this page runs in your browser.
+    </p>
+  </header>
+
+  <main>
+
+  <!-- ================================================================ 1 -->
+  <section class="sec" id="s1" aria-labelledby="s1h">
+    <div class="sec-head">
+      <span class="num-badge">1</span>
+      <div>
+        <h2 id="s1h">Understanding manifolds</h2>
+        <p class="sub">A <b>manifold</b> of dimension <span class="tex" data-tex="L"></span> is a space that looks like flat <span class="tex" data-tex="\mathbb{R}^L"></span> near every point, even if it is curved overall. The Earth looks flat from your yard and round from orbit.</p>
+      </div>
+    </div>
+
+    <div class="grid-s1">
+      <div class="card">
+        <div class="seg" role="group" aria-label="Surface" id="s1-surf"></div>
+        <div class="canvas-wrap grow"><canvas id="s1-canvas" class="c3d" tabindex="0" aria-label="3-D surface viewer. Drag to rotate, scroll to zoom, click to move the point. Arrow keys rotate."></canvas>
+          <div class="hint">drag to rotate &middot; scroll or pinch to zoom &middot; <b>click the surface</b> to move the point</div></div>
+        <div class="btn-row">
+          <button type="button" class="btn btn-main" id="s1-zoom">Zoom into the point</button>
+          <button type="button" class="btn" id="s1-home">Zoom out</button>
+          <button type="button" class="btn" id="s1-spin" aria-pressed="false">Spin</button>
+          <label class="chk"><input type="checkbox" id="s1-plane" checked> tangent plane</label>
+        </div>
+      </div>
+
+      <div class="card side">
+        <div class="ctrl">
+          <label for="s1-r">Neighborhood radius <span class="tex" data-tex="r"></span> <output id="s1-rv" class="num"></output></label>
+          <input type="range" id="s1-r" min="0.1" max="3" step="0.05" value="1.2">
+        </div>
+        <div class="kv">
+          <div><span>Largest gap to the tangent plane, <span class="tex" data-tex="\delta"></span></span><b class="num" id="s1-delta"></b></div>
+          <div><span>Gap relative to the radius, <span class="tex" data-tex="\delta / r"></span></span><b class="num" id="s1-ratio"></b></div>
+          <div><span>Gaussian curvature <span class="tex" data-tex="K"></span></span><b class="num" id="s1-K"></b></div>
+        </div>
+        <figure class="mini">
+          <canvas id="s1-curve" class="c-mini" aria-label="Gap over radius as a function of radius"></canvas>
+          <figcaption><span class="tex" data-tex="\delta/r"></span> against <span class="tex" data-tex="r"></span>: it goes to 0 as the patch shrinks, so every small patch is nearly flat.</figcaption>
+        </figure>
+        <figure class="mini">
+          <canvas id="s1-chart" class="c-mini sq" aria-label="Patch seen from above the tangent plane"></canvas>
+          <figcaption>The <b>chart</b> <span class="tex" data-tex="\varphi: U \to \mathbb{R}^2"></span>: the patch seen from straight above the tangent plane. Color shows height off the plane (<span class="sw sw-up"></span> above, <span class="sw sw-dn"></span> below).</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="explain-grid">
+      <div class="note-card">
+        <h3>Locally Euclidean</h3>
+        <p>Near a point <span class="tex" data-tex="p"></span>, the surface hugs its <b>tangent plane</b> <span class="tex" data-tex="T_p\mathcal{M}"></span>. A Taylor expansion gives a gap of roughly <span class="tex" data-tex="\delta \approx \tfrac12 \kappa\, r^2"></span>, where <span class="tex" data-tex="\kappa"></span> is the bending, so <span class="tex" data-tex="\delta/r \to 0"></span>. Shrink <span class="tex" data-tex="r"></span> and watch it happen. This is the whole license for manifold learning: <b>small neighborhoods can be treated as linear</b>.</p>
+      </div>
+      <div class="note-card">
+        <h3>Globally curved</h3>
+        <p>Grow <span class="tex" data-tex="r"></span> and the plane stops fitting. On the sphere the gap grows without limit. No single flat chart covers it, and no map to <span class="tex" data-tex="\mathbb{R}^2"></span> keeps all distances. That is why world maps distort Greenland.</p>
+      </div>
+      <div class="note-card">
+        <h3>Riemannian structure</h3>
+        <p>A <b>Riemannian manifold</b> adds an inner product on every tangent space: the metric <span class="tex" data-tex="g_p(\mathbf u, \mathbf v)"></span>. With it you can measure curve lengths, and the shortest curves are <b>geodesics</b>. The Swiss roll has <span class="tex" data-tex="K = 0"></span>: it is curved in <span class="tex" data-tex="\mathbb{R}^3"></span> but intrinsically flat, like rolled paper. So it <i>can</i> be unrolled with no stretching. The sphere (<span class="tex" data-tex="K>0"></span>) and the saddle (<span class="tex" data-tex="K<0"></span>) cannot.</p>
+      </div>
+    </div>
+    <div class="metric-strip" id="s1-metric"></div>
+  </section>
+
+  <!-- ================================================================ 2 -->
+  <section class="sec" id="s2" aria-labelledby="s2h">
+    <div class="sec-head">
+      <span class="num-badge">2</span>
+      <div>
+        <h2 id="s2h">The manifold hypothesis</h2>
+        <p class="sub">Real high-dimensional data, like images, sound and text embeddings, tends to sit near a low-dimensional manifold inside the huge ambient space. Here is a single handwritten digit as a point in <span class="tex" data-tex="\mathbb{R}^{784}"></span>.</p>
+      </div>
+    </div>
+
+    <div class="grid-s2">
+      <div class="card">
+        <div class="seg" role="group" aria-label="Digit" id="s2-digit"></div>
+        <div class="digit-row">
+          <canvas id="s2-img" class="c-digit" width="280" height="280" aria-label="28 by 28 pixel digit"></canvas>
+          <div class="sliders" id="s2-sliders"></div>
+        </div>
+        <div class="dimbox">
+          <div><span class="big num" id="s2-amb">784</span><span>ambient dimension <span class="tex" data-tex="D"></span><br><small>28 &times; 28 pixel intensities</small></span></div>
+          <div class="vs">vs</div>
+          <div><span class="big num accent" id="s2-int">5</span><span>intrinsic dimension <span class="tex" data-tex="L"></span><br><small>sliders that generate the image</small></span></div>
+        </div>
+        <figure class="mini">
+          <canvas id="s2-vec" class="c-vec" aria-label="The image unrolled into a 784-long vector"></canvas>
+          <figcaption>The same image unrolled into one vector <span class="tex" data-tex="\mathbf x \in [0,1]^{784}"></span>, row by row. Move any slider and many of the 784 coordinates change together, yet you only set 5 numbers.</figcaption>
+        </figure>
+        <div class="btn-row">
+          <button type="button" class="btn" id="s2-noise" aria-pressed="false">Show a random point of ℝ⁷⁸⁴</button>
+          <button type="button" class="btn btn-quiet" id="s2-reset">Reset sliders</button>
+        </div>
+        <p class="note" id="s2-noise-note" hidden>A random vector of 784 pixel values almost never looks like a digit. If you drew one every second for the age of the universe, you would not expect to hit a <i>2</i>. Digits fill a vanishingly thin part of the space.</p>
+      </div>
+
+      <div class="card side">
+        <h3 class="card-h">A family of images is a manifold</h3>
+        <p class="small">Pick which variables vary. The page renders 300 random images from that family, each a point in <span class="tex" data-tex="\mathbb{R}^{784}"></span>, and shows their shadow on the top two principal components. The big dot is <b>your</b> current image.</p>
+        <div class="chips" id="s2-free" role="group" aria-label="Free variables of the family"></div>
+        <canvas id="s2-pca" class="c-mid" aria-label="Family of images projected onto two principal components"></canvas>
+        <div class="btn-row">
+          <button type="button" class="btn btn-main" id="s2-sweep">Sweep rotation &minus;180&deg; &rarr; 180&deg;</button>
+          <button type="button" class="btn btn-quiet" id="s2-clear">Clear trail</button>
+        </div>
+        <canvas id="s2-spec" class="c-mini" aria-label="Cumulative variance explained by principal components"></canvas>
+        <p class="small" id="s2-spec-note"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ 3 -->
+  <section class="sec" id="s3" aria-labelledby="s3h">
+    <div class="sec-head">
+      <span class="num-badge">3</span>
+      <div>
+        <h2 id="s3h">Euclidean vs. geodesic distance</h2>
+        <p class="sub">The straight line through <span class="tex" data-tex="\mathbb{R}^3"></span> can cut across the gap between layers. The <b>geodesic</b> stays on the manifold. Isomap estimates it as the shortest path through a <span class="tex" data-tex="k"></span>-nearest-neighbor graph.</p>
+      </div>
+    </div>
+
+    <div class="grid-s3">
+      <div class="card">
+        <div class="card-top"><span class="kicker">Ambient space ℝ³</span><span class="pickhint" id="s3-next">Next click places <b class="pa">A</b></span></div>
+        <div class="canvas-wrap"><canvas id="s3-canvas" class="c3d" tabindex="0" aria-label="Swiss roll point cloud. Click points to place A and B."></canvas>
+          <div class="hint">drag to rotate &middot; click two points</div></div>
+        <div class="legend">
+          <span><i class="lg lg-euc"></i>Euclidean chord</span>
+          <span><i class="lg lg-graph"></i>graph shortest path</span>
+          <span><i class="lg lg-true"></i>true geodesic</span>
+          <span><i class="lg lg-short"></i>short-circuit edge</span>
+        </div>
+        <div class="card-top"><span class="kicker">Unrolled coordinates (s, h): the same points, flattened</span><span class="small muted">exact isometric chart · click here too</span></div>
+        <canvas id="s3-flat" class="c-flat" aria-label="Unrolled Swiss roll. Click points to place A and B."></canvas>
+      </div>
+      <div class="card side">
+        <div class="ctrl"><label for="s3-k">Neighbors <span class="tex" data-tex="k"></span> <output id="s3-kv" class="num"></output></label><input type="range" id="s3-k" min="2" max="40" step="1" value="7"></div>
+        <div class="ctrl"><label for="s3-noise">Noise <output id="s3-nv" class="num"></output></label><input type="range" id="s3-noise" min="0" max="1" step="0.05" value="0"></div>
+        <div class="ctrl"><label for="s3-n">Points <span class="tex" data-tex="N"></span> <output id="s3-Nv" class="num"></output></label><input type="range" id="s3-n" min="300" max="1200" step="50" value="500"></div>
+        <label class="chk"><input type="checkbox" id="s3-edges"> show the kNN graph</label>
+        <div class="btn-row">
+          <button type="button" class="btn btn-main" id="s3-layers">Neighbors across a layer</button>
+          <button type="button" class="btn" id="s3-rand">Random pair</button>
+        </div>
+        <div class="dist-table" id="s3-table"></div>
+        <div class="warn" id="s3-warn" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ 4 -->
+  <section class="sec" id="s4" aria-labelledby="s4h">
+    <div class="sec-head">
+      <span class="num-badge">4</span>
+      <div>
+        <h2 id="s4h">Dimensionality reduction playground</h2>
+        <p class="sub">Six methods, one dataset, all run here. Every point keeps its color in every plot, so you can follow where it lands. Hover a point to light it up and its 10 true neighbors in every view. Click a thumbnail to inspect a method and tune it.</p>
+      </div>
+    </div>
+
+    <div class="card toolbar">
+      <div class="seg" role="group" aria-label="Dataset" id="s4-data"></div>
+      <div class="tb-ctrls">
+        <div class="ctrl inline"><label for="s4-n"><span class="tex" data-tex="N"></span> <output id="s4-nv" class="num"></output></label><input type="range" id="s4-n" min="150" max="600" step="50" value="400"></div>
+        <div class="ctrl inline"><label for="s4-noise">noise <output id="s4-noisev" class="num"></output></label><input type="range" id="s4-noise" min="0" max="1" step="0.05" value="0"></div>
+        <div class="ctrl inline"><label for="s4-color">color by</label><select id="s4-color"></select></div>
+        <button type="button" class="btn" id="s4-seed">New sample</button>
+      </div>
+    </div>
+
+    <div class="grid-s4">
+      <div class="card">
+        <div class="card-top"><span class="kicker">Original data in ℝ³</span><span class="small muted" id="s4-dims"></span></div>
+        <div class="canvas-wrap grow"><canvas id="s4-3d" class="c3d" tabindex="0" aria-label="Original 3-D dataset"></canvas>
+          <div class="hint">drag to rotate &middot; scroll to zoom &middot; hover a point</div></div>
+      </div>
+      <div class="card focus">
+        <div class="card-top"><span class="kicker">Embedding in ℝ²</span><span class="status" id="s4-status"></span></div>
+        <h3 class="focus-title" id="s4-ftitle"></h3>
+        <canvas id="s4-focus" class="c-focus" aria-label="2-D embedding of the selected method"></canvas>
+        <div class="metrics" id="s4-metrics"></div>
+      </div>
+      <div class="card side">
+        <h3 class="card-h" id="s4-ptitle">Hyperparameters</h3>
+        <div id="s4-params"></div>
+        <div class="spec-wrap">
+          <span class="kicker" id="s4-spec-h">Spectrum</span>
+          <canvas id="s4-spec" class="c-mini" aria-label="Eigenvalue spectrum"></canvas>
+          <p class="small" id="s4-spec-note"></p>
+        </div>
+        <p class="small tip" id="s4-tip"></p>
+      </div>
+    </div>
+
+    <div class="thumbs" id="s4-thumbs" role="list"></div>
+    <p class="fine">
+      <b>Labels.</b> All six methods are the real algorithms, run exactly: dense eigendecompositions, Dijkstra on the kNN graph, and t-SNE with the exact
+      <span class="tex" data-tex="O(N^2)"></span> gradient (no Barnes&ndash;Hut). Two choices simplify the textbook versions: kernel PCA uses only the RBF kernel, and t-SNE
+      runs a fixed number of iterations from one seeded random start. Each plot is centered, scaled to unit size, and rotated or reflected to best match the true
+      coordinates (orthogonal Procrustes). That never changes a shape; it only stops the plots from spinning between methods.
+      <b>10-NN kept</b> is the fraction of each point&rsquo;s 10 true manifold neighbors that stay among its 10 nearest in the embedding (local structure).
+      <b>Distance corr.</b> is the Pearson correlation between true geodesic distances and embedding distances (global structure).
+    </p>
+  </section>
+
+  <!-- ================================================================ 5 -->
+  <section class="sec" id="s5" aria-labelledby="s5h">
+    <div class="sec-head">
+      <span class="num-badge">5</span>
+      <div>
+        <h2 id="s5h">Mathematical understanding</h2>
+        <p class="sub">Each method writes &ldquo;keep the shape&rdquo; as a different objective. Pick one, then send it to the playground to watch it succeed or fail.</p>
+      </div>
+    </div>
+
+    <div class="tabs" role="tablist" id="s5-tabs"></div>
+
+    <article class="algo" data-algo="pca" role="tabpanel">
+      <div class="algo-grid">
+        <div><h4>Problem</h4><p>Find the <span class="tex" data-tex="L"></span>-dimensional <b>linear subspace</b> closest to the data.</p></div>
+        <div><h4>Preserves</h4><p><b>Variance</b>, so the large pairwise Euclidean distances. With Euclidean distances, classical MDS gives the same embedding.</p></div>
+        <div class="wide"><h4>Objective</h4>
+          <div class="tex-block" data-tex="\min_{\mathbf W^\top \mathbf W = \mathbf I}\ \frac1N\sum_{n=1}^N \big\lVert \mathbf x_n - \boldsymbol\mu - \mathbf W\mathbf W^\top(\mathbf x_n-\boldsymbol\mu)\big\rVert^2 \;\Longleftrightarrow\; \max_{\mathbf W^\top \mathbf W = \mathbf I}\ \operatorname{tr}\!\big(\mathbf W^\top \boldsymbol\Sigma \mathbf W\big)"></div></div>
+        <div class="wide"><h4>Step by step</h4><ol>
+          <li>Center the data: <span class="tex" data-tex="\tilde{\mathbf x}_n = \mathbf x_n - \boldsymbol\mu"></span>.</li>
+          <li>Form the covariance <span class="tex" data-tex="\boldsymbol\Sigma = \frac1N\sum_n \tilde{\mathbf x}_n\tilde{\mathbf x}_n^\top"></span> (<span class="tex" data-tex="D\times D"></span>).</li>
+          <li>Take the top-<span class="tex" data-tex="L"></span> eigenvectors <span class="tex" data-tex="\mathbf W = [\mathbf w_1,\dots,\mathbf w_L]"></span>.</li>
+          <li>Embed: <span class="tex" data-tex="\mathbf z_n = \mathbf W^\top\tilde{\mathbf x}_n"></span>.</li></ol></div>
+        <div><h4>Parametric?</h4><p><b>Yes.</b> It learns an explicit map <span class="tex" data-tex="f(\mathbf x) = \mathbf W^\top(\mathbf x-\boldsymbol\mu)"></span>, so new points embed instantly.</p></div>
+        <div><h4>Succeeds / fails</h4><p><span class="ok">&#10003;</span> Data near a flat subspace; fast, convex, unique.<br><span class="no">&#10007;</span> Curved manifolds. Any linear projection of the Swiss roll stacks its layers on top of each other.</p></div>
+      </div>
+      <div class="btn-row"><button type="button" class="btn" data-try="linear|pca">See it succeed: linear plane</button><button type="button" class="btn" data-try="swiss|pca">See it fail: Swiss roll</button></div>
+    </article>
+
+    <article class="algo" data-algo="kpca" role="tabpanel" hidden>
+      <div class="algo-grid">
+        <div><h4>Problem</h4><p>Do PCA in a nonlinear <b>feature space</b> <span class="tex" data-tex="\phi(\mathbf x)"></span> without ever computing <span class="tex" data-tex="\phi"></span>. This is the kernel trick.</p></div>
+        <div><h4>Preserves</h4><p>Variance of the feature vectors <span class="tex" data-tex="\phi(\mathbf x_n)"></span>, as measured by the kernel <span class="tex" data-tex="\mathcal K(\mathbf x,\mathbf x') = \langle\phi(\mathbf x),\phi(\mathbf x')\rangle"></span>.</p></div>
+        <div class="wide"><h4>Objective</h4>
+          <div class="tex-block" data-tex="\max_{\lVert \mathbf v\rVert=1}\ \mathbf v^\top \tilde{\mathbf K}\mathbf v,\qquad \tilde{\mathbf K} = \mathbf H\mathbf K\mathbf H,\quad \mathbf H = \mathbf I - \tfrac1N\mathbf 1\mathbf 1^\top,\quad K_{ij} = \exp\!\Big(-\frac{\lVert\mathbf x_i-\mathbf x_j\rVert^2}{2\sigma^2}\Big)"></div></div>
+        <div class="wide"><h4>Step by step</h4><ol>
+          <li>Build the <span class="tex" data-tex="N\times N"></span> kernel matrix <span class="tex" data-tex="\mathbf K"></span>.</li>
+          <li>Center it in feature space: <span class="tex" data-tex="\tilde{\mathbf K} = \mathbf H\mathbf K\mathbf H"></span>.</li>
+          <li>Eigendecompose: <span class="tex" data-tex="\tilde{\mathbf K}\mathbf v_k = \lambda_k\mathbf v_k"></span>.</li>
+          <li>Embed: <span class="tex" data-tex="z_{nk} = \sqrt{\lambda_k}\, v_{nk}"></span>. A new point gets <span class="tex" data-tex="z_k(\mathbf x) = \lambda_k^{-1/2}\sum_n v_{nk}\,\tilde{\mathcal K}(\mathbf x,\mathbf x_n)"></span>.</li></ol></div>
+        <div><h4>Parametric?</h4><p><b>In between.</b> It can embed new points, but its &ldquo;map&rdquo; is a sum over all <span class="tex" data-tex="N"></span> training points, so it grows with the data. It is usually called nonparametric.</p></div>
+        <div><h4>Succeeds / fails</h4><p><span class="ok">&#10003;</span> With a linear kernel it <i>is</i> PCA; RBF helps with some curved shapes like the circle.<br><span class="no">&#10007;</span> The RBF kernel does not <i>unroll</i> a Swiss roll. Murphy shows this too: the top kernel eigenvectors are smooth bumps, not the roll coordinate, and results depend heavily on <span class="tex" data-tex="\sigma"></span>.</p></div>
+      </div>
+      <div class="btn-row"><button type="button" class="btn" data-try="circle|kpca">See it succeed: circle</button><button type="button" class="btn" data-try="swiss|kpca">See it fail: Swiss roll</button></div>
+    </article>
+
+    <article class="algo" data-algo="isomap" role="tabpanel" hidden>
+      <div class="algo-grid">
+        <div><h4>Problem</h4><p>Embed so that straight-line distances in <span class="tex" data-tex="\mathbb{R}^L"></span> match <b>geodesic</b> distances along the manifold.</p></div>
+        <div><h4>Preserves</h4><p>Geodesic distances between <i>all</i> pairs, estimated as shortest paths in the kNN graph. It is global and metric.</p></div>
+        <div class="wide"><h4>Objective</h4>
+          <div class="tex-block" data-tex="\min_{\mathbf Z}\ \big\lVert \mathbf B - \mathbf Z\mathbf Z^\top \big\rVert_F^2,\qquad \mathbf B = -\tfrac12\,\mathbf H\,\mathbf D_G^{(2)}\,\mathbf H,\quad (\mathbf D_G^{(2)})_{ij} = d_G(i,j)^2"></div>
+          <p class="small">This is classical MDS (&ldquo;strain&rdquo;) applied to graph distances <span class="tex" data-tex="d_G"></span> instead of Euclidean ones.</p></div>
+        <div class="wide"><h4>Step by step</h4><ol>
+          <li>Connect each point to its <span class="tex" data-tex="k"></span> nearest neighbors, with edges weighted by Euclidean length.</li>
+          <li>Run all-pairs shortest paths (Dijkstra) to get <span class="tex" data-tex="d_G(i,j) \approx d_{\mathcal M}(i,j)"></span>.</li>
+          <li>Double-center the squared distances to get <span class="tex" data-tex="\mathbf B"></span>.</li>
+          <li>Embed with the top-<span class="tex" data-tex="L"></span> eigenvectors: <span class="tex" data-tex="\mathbf Z = \mathbf V_L\boldsymbol\Lambda_L^{1/2}"></span>.</li></ol></div>
+        <div><h4>Parametric?</h4><p><b>No.</b> It outputs coordinates for the training points only. New points need an out-of-sample extension, such as Nyström.</p></div>
+        <div><h4>Succeeds / fails</h4><p><span class="ok">&#10003;</span> Intrinsically flat (<span class="tex" data-tex="K=0"></span>), convex, well-sampled manifolds. It unrolls the Swiss roll almost perfectly.<br><span class="no">&#10007;</span> <b>Short circuits</b>: noise or a large <span class="tex" data-tex="k"></span> adds edges between layers, and every geodesic collapses. Too small a <span class="tex" data-tex="k"></span> disconnects the graph. Holes in the manifold bend the paths. The cost is <span class="tex" data-tex="O(N^3)"></span>.</p></div>
+      </div>
+      <div class="btn-row"><button type="button" class="btn" data-try="swiss|isomap|k=8">See it succeed: k = 8</button><button type="button" class="btn" data-try="swiss|isomap|k=22">See it fail: k = 22 short-circuits</button><button type="button" class="btn" data-try="swiss|isomap|k=8|noise=0.6">See it fail: noise 0.6</button></div>
+    </article>
+
+    <article class="algo" data-algo="lle" role="tabpanel" hidden>
+      <div class="algo-grid">
+        <div><h4>Problem</h4><p>Each point is roughly a weighted average of its neighbors, because the patch is nearly flat. Find low-dimensional points that keep <b>the same weights</b>.</p></div>
+        <div><h4>Preserves</h4><p>The local <b>linear reconstruction weights</b> <span class="tex" data-tex="w_{ij}"></span>. These do not change under rotation, scaling or translation of a patch, so they capture its intrinsic geometry.</p></div>
+        <div class="wide"><h4>Objective</h4>
+          <div class="tex-block" data-tex="\text{(1)}\ \min_{\mathbf W}\sum_i \Big\lVert \mathbf x_i - \!\!\sum_{j\in\mathcal N(i)}\! w_{ij}\mathbf x_j\Big\rVert^2\ \ \text{s.t.}\ \sum_j w_{ij}=1 \qquad \text{(2)}\ \min_{\mathbf Z}\sum_i \Big\lVert \mathbf z_i - \sum_j w_{ij}\mathbf z_j\Big\rVert^2 = \operatorname{tr}(\mathbf Z^\top\mathbf M\mathbf Z)"></div>
+          <p class="small">with <span class="tex" data-tex="\mathbf M = (\mathbf I-\mathbf W)^\top(\mathbf I-\mathbf W)"></span>, subject to <span class="tex" data-tex="\mathbf Z^\top\mathbf 1 = \mathbf 0"></span> and <span class="tex" data-tex="\tfrac1N\mathbf Z^\top\mathbf Z = \mathbf I"></span> (otherwise <span class="tex" data-tex="\mathbf Z = \mathbf 0"></span> wins).</p></div>
+        <div class="wide"><h4>Step by step</h4><ol>
+          <li>Find the <span class="tex" data-tex="k"></span> nearest neighbors of each point.</li>
+          <li>Solve the local system <span class="tex" data-tex="(\mathbf C_i + \epsilon\,\operatorname{tr}(\mathbf C_i)\,\mathbf I)\,\mathbf w = \mathbf 1"></span> with <span class="tex" data-tex="(\mathbf C_i)_{ab} = (\mathbf x_a-\mathbf x_i)^\top(\mathbf x_b-\mathbf x_i)"></span>, then rescale so <span class="tex" data-tex="\sum w = 1"></span>. When <span class="tex" data-tex="k > D"></span> the local Gram matrix is singular, hence the regularizer.</li>
+          <li>Build the sparse <span class="tex" data-tex="\mathbf M"></span>.</li>
+          <li>Take its <b>bottom</b> eigenvectors 2 to <span class="tex" data-tex="L{+}1"></span>. The very bottom one is the constant vector with eigenvalue 0, so skip it.</li></ol></div>
+        <div><h4>Parametric?</h4><p><b>No.</b> It gives coordinates for the training points only.</p></div>
+        <div><h4>Succeeds / fails</h4><p><span class="ok">&#10003;</span> Smooth, well-sampled manifolds; it uses only a sparse eigenproblem with no all-pairs distances.<br><span class="no">&#10007;</span> It is sensitive to <span class="tex" data-tex="k"></span> and <span class="tex" data-tex="\epsilon"></span>, and to uneven sampling. The constraint <span class="tex" data-tex="\mathbf Z^\top\mathbf Z=\mathbf I"></span> invites folded or squashed outputs. A tiny <span class="tex" data-tex="k"></span> breaks the manifold into pieces.</p></div>
+      </div>
+      <div class="btn-row"><button type="button" class="btn" data-try="scurve|lle|k=12">See it succeed: S-curve</button><button type="button" class="btn" data-try="scurve|lle|k=4">See it fail: k = 4</button></div>
+    </article>
+
+    <article class="algo" data-algo="lap" role="tabpanel" hidden>
+      <div class="algo-grid">
+        <div><h4>Problem</h4><p>Place points so that <b>graph neighbors land close together</b>: the smoothest possible coordinate functions on the graph.</p></div>
+        <div><h4>Preserves</h4><p><b>Locality</b>: who is near whom, weighted by a heat kernel. As <span class="tex" data-tex="N\to\infty"></span> the graph Laplacian tends to the Laplace&ndash;Beltrami operator of the manifold.</p></div>
+        <div class="wide"><h4>Objective</h4>
+          <div class="tex-block" data-tex="\min_{\mathbf Z}\ \tfrac12\sum_{i,j} W_{ij}\lVert\mathbf z_i-\mathbf z_j\rVert^2 = \operatorname{tr}(\mathbf Z^\top\mathbf L\mathbf Z)\quad\text{s.t.}\ \mathbf Z^\top\mathbf D\mathbf Z = \mathbf I,\ \ \mathbf Z^\top\mathbf D\mathbf 1 = \mathbf 0"></div>
+          <p class="small">with <span class="tex" data-tex="W_{ij} = \exp(-\lVert\mathbf x_i-\mathbf x_j\rVert^2/2\sigma^2)"></span> on kNN edges, <span class="tex" data-tex="\mathbf D = \operatorname{diag}(\sum_j W_{ij})"></span>, <span class="tex" data-tex="\mathbf L = \mathbf D - \mathbf W"></span>.</p></div>
+        <div class="wide"><h4>Step by step</h4><ol>
+          <li>Build the kNN graph and give each edge a heat-kernel weight.</li>
+          <li>Form the degree matrix <span class="tex" data-tex="\mathbf D"></span> and the Laplacian <span class="tex" data-tex="\mathbf L"></span>.</li>
+          <li>Solve the generalized problem <span class="tex" data-tex="\mathbf L\mathbf z = \lambda\mathbf D\mathbf z"></span>. This page uses the equivalent <span class="tex" data-tex="\mathbf I - \mathbf D^{-1/2}\mathbf W\mathbf D^{-1/2}"></span>.</li>
+          <li>Skip <span class="tex" data-tex="\lambda_0 = 0"></span> (constant) and keep eigenvectors 1 to <span class="tex" data-tex="L"></span>.</li></ol></div>
+        <div><h4>Parametric?</h4><p><b>No.</b> It gives coordinates for the training points only.</p></div>
+        <div><h4>Succeeds / fails</h4><p><span class="ok">&#10003;</span> Recovering neighborhoods and clusters (it is the core of spectral clustering); it is fast with sparse <span class="tex" data-tex="\mathbf L"></span>.<br><span class="no">&#10007;</span> Distances and aspect ratio are not preserved. On a long strip the second eigenvector can be a <i>second harmonic</i> of the long direction (<span class="tex" data-tex="\cos 2\pi s"></span>) rather than the short one, which gives a curved arch. Nothing stops far-apart points from landing close.</p></div>
+      </div>
+      <div class="btn-row"><button type="button" class="btn" data-try="circle|lap">See it succeed: circle</button><button type="button" class="btn" data-try="swiss|lap">See it fail: Swiss roll arch</button></div>
+    </article>
+
+    <article class="algo" data-algo="tsne" role="tabpanel" hidden>
+      <div class="algo-grid">
+        <div><h4>Problem</h4><p>Make a 2-D picture where each point&rsquo;s <b>neighbor probabilities</b> match those in the original space. It is built for visualization.</p></div>
+        <div><h4>Preserves</h4><p>The local neighbor distribution <span class="tex" data-tex="p_{ij}"></span>. Its heavy-tailed Student-<span class="tex" data-tex="t"></span> similarities in 2-D fix the <b>crowding problem</b>: moderately distant points are allowed to spread out.</p></div>
+        <div class="wide"><h4>Objective</h4>
+          <div class="tex-block" data-tex="\min_{\mathbf Z}\ \mathrm{KL}(P\,\Vert\,Q) = \sum_{i\neq j} p_{ij}\log\frac{p_{ij}}{q_{ij}},\quad p_{j|i} = \frac{e^{-\lVert\mathbf x_i-\mathbf x_j\rVert^2/2\sigma_i^2}}{\sum_{k\neq i}e^{-\lVert\mathbf x_i-\mathbf x_k\rVert^2/2\sigma_i^2}},\quad q_{ij} = \frac{(1+\lVert\mathbf z_i-\mathbf z_j\rVert^2)^{-1}}{\sum_{k\neq l}(1+\lVert\mathbf z_k-\mathbf z_l\rVert^2)^{-1}}"></div>
+          <p class="small">with <span class="tex" data-tex="p_{ij} = (p_{j|i}+p_{i|j})/2N"></span>. Each <span class="tex" data-tex="\sigma_i"></span> is set by bisection so that <span class="tex" data-tex="2^{H(P_i)} = \text{perplexity}"></span>, the effective number of neighbors. Gradient: <span class="tex" data-tex="\nabla_{\mathbf z_i} = 4\sum_j (p_{ij}-q_{ij})(\mathbf z_i-\mathbf z_j)(1+\lVert\mathbf z_i-\mathbf z_j\rVert^2)^{-1}"></span>.</p></div>
+        <div class="wide"><h4>Step by step</h4><ol>
+          <li>For each <span class="tex" data-tex="i"></span>, bisect on <span class="tex" data-tex="\sigma_i"></span> to hit the target perplexity, then symmetrize to get <span class="tex" data-tex="p_{ij}"></span>.</li>
+          <li>Initialize <span class="tex" data-tex="\mathbf z_i \sim \mathcal N(0, 10^{-4}\mathbf I)"></span>.</li>
+          <li>Run gradient descent with momentum, using <b>early exaggeration</b> (<span class="tex" data-tex="p_{ij}\times 12"></span> for the first 100 steps) so that clusters form first.</li>
+          <li>Stop after a fixed number of iterations. The objective is nonconvex, so different seeds give different maps.</li></ol></div>
+        <div><h4>Parametric?</h4><p><b>No.</b> There is no map to apply to a new point. Parametric t-SNE trains a network <span class="tex" data-tex="f_\theta"></span> on the same loss instead.</p></div>
+        <div><h4>Succeeds / fails</h4><p><span class="ok">&#10003;</span> Revealing clusters and local neighborhoods. It is the default for viewing embeddings.<br><span class="no">&#10007;</span> Global distances, cluster sizes and gaps <b>mean little</b>. It can tear a continuous manifold into fragments, depends on perplexity and the seed, and costs <span class="tex" data-tex="O(N^2)"></span> per step (Barnes&ndash;Hut: <span class="tex" data-tex="O(N\log N)"></span>). UMAP (&sect;20.4.10) is a faster relative.</p></div>
+      </div>
+      <div class="btn-row"><button type="button" class="btn" data-try="scurve|tsne|perp=30">See it succeed: perplexity 30</button><button type="button" class="btn" data-try="scurve|tsne|perp=2">See it fail: perplexity 2 tears it apart</button></div>
+    </article>
+
+    <div class="card table-card">
+      <h3 class="card-h">At a glance</h3>
+      <div class="table-scroll">
+      <table class="cmp">
+        <thead><tr><th>Method</th><th>Preserves</th><th>Linear?</th><th>Parametric?</th><th>Optimization</th><th>Main failure</th></tr></thead>
+        <tbody>
+          <tr><td>PCA</td><td>global variance</td><td>yes</td><td>yes</td><td>top eigvecs of <span class="tex" data-tex="\boldsymbol\Sigma"></span> (convex)</td><td>curved manifolds overlap</td></tr>
+          <tr><td>Kernel PCA</td><td>variance in feature space</td><td>no</td><td>kernel-expansion</td><td>top eigvecs of <span class="tex" data-tex="\tilde{\mathbf K}"></span></td><td>kernel/<span class="tex" data-tex="\sigma"></span> choice; doesn't unroll</td></tr>
+          <tr><td>Isomap</td><td>all-pairs geodesic distance</td><td>no</td><td>no</td><td>MDS on <span class="tex" data-tex="d_G"></span> (top eigvecs)</td><td>short circuits, holes</td></tr>
+          <tr><td>LLE</td><td>local reconstruction weights</td><td>no</td><td>no</td><td>bottom eigvecs of sparse <span class="tex" data-tex="\mathbf M"></span></td><td>sensitive to <span class="tex" data-tex="k"></span>, folds</td></tr>
+          <tr><td>Laplacian eigenmaps</td><td>neighbors stay close</td><td>no</td><td>no</td><td>bottom gen. eigvecs of <span class="tex" data-tex="\mathbf L"></span></td><td>distorts distances, harmonics</td></tr>
+          <tr><td>t-SNE</td><td>neighbor probabilities</td><td>no</td><td>no</td><td>gradient descent on KL (nonconvex)</td><td>global geometry meaningless</td></tr>
+        </tbody>
+      </table>
+      </div>
+      <p class="small">Linear vs. nonlinear asks whether the embedding is a linear function of <span class="tex" data-tex="\mathbf x"></span>. Parametric vs. nonparametric asks whether you learn a reusable function <span class="tex" data-tex="f:\mathbb{R}^D\to\mathbb{R}^L"></span> (PCA, autoencoders, parametric t-SNE) or only one <span class="tex" data-tex="\mathbf z_n"></span> per training point. Murphy &sect;20.4 also covers metric and non-metric MDS, Sammon mapping, maximum variance unfolding and UMAP. They are not run on this page.</p>
+    </div>
+  </section>
+
+  <!-- ================================================================ 6 -->
+  <section class="sec" id="s6" aria-labelledby="s6h">
+    <div class="sec-head">
+      <span class="num-badge">6</span>
+      <div>
+        <h2 id="s6h">Test your understanding</h2>
+        <p class="sub">Pick an answer and get feedback right away. Every option is explained, wrong ones too.</p>
+      </div>
+    </div>
+    <div class="quiz-bar"><span>Score <b class="num" id="q-score">0 / 0</b></span><button type="button" class="btn btn-quiet" id="q-reset">Reset quiz</button></div>
+    <div id="quiz"></div>
+  </section>
+
+  </main>
+
+  <footer class="foot">
+    <p>Kevin P. Murphy, <i>Probabilistic Machine Learning: An Introduction</i> (MIT Press, 2022), &sect;20.4: manifold learning, Isomap, kernel PCA, LLE,
+    Laplacian eigenmaps, t-SNE. Also Tenenbaum, de Silva &amp; Langford (2000); Roweis &amp; Saul (2000); Belkin &amp; Niyogi (2003); van der Maaten &amp; Hinton (2008).
+    All datasets are generated on the page, and the digits are drawn strokes, not MNIST images.</p>
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="model.js"></script>
+<script src="plot.js"></script>
+<script src="explore.js"></script>
+<script src="playground.js"></script>
+<script src="quiz.js"></script>
+</body>
+</html>

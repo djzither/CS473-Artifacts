@@ -24,6 +24,7 @@ the deployed site on GitHub Pages.
 | ✅ | [`ensembles/`](ensembles/) — **How Tree Ensembles Learn** | Murphy §18.4–18.5.4: random forests, forward stagewise additive modeling, least squares boosting, AdaBoost and LogitBoost, stepped round by round on real Titanic passengers |
 | ✅ | [`xgboost/`](xgboost/) — **Boosting Through the Highstorm** | Murphy §18.5: gradient boosting and XGBoost round by round with a *Way of Kings* bridge-forecasting story (invented data), residuals as negative gradients, learning rate, gain with λ and γ, leaf weights −G/(H+λ), pruning |
 | ✅ | [`bald/`](bald/) — **Two Kinds of 50/50** | Murphy §19.4: BALD for active learning, confident disagreement vs. shared uncertainty at the same 50% average, entropy of the average minus average of the entropies on the binary entropy curve, Bayesian updates of model weights after a revealed label |
+| ✅ | [`manifold/`](manifold/) — **Manifold Learning Playground** | Murphy §20.4: manifolds, tangent planes and curvature, the manifold hypothesis on a drawn digit, Euclidean vs. geodesic distance and short circuits, PCA, kernel PCA, Isomap, LLE, Laplacian eigenmaps and t-SNE running live side by side, then each objective and a 16-question quiz |
 | ☐ | Uncorrelated ≠ independent | ρ ≈ 0 for a Gaussian blob vs. Y = X², side by side |
 | ☐ | Simpson's paradox | Iris sepal data with a "merge species" toggle |
 | ☐ | Mahalanobis vs. Euclidean | drop a test point, compare both distances |
