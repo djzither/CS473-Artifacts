@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PCA Interactive Learning Lab</title>
+<meta name="description" content="Principal components analysis for CS 473, following Murphy PML §20.1.1, §20.1.3 and §20.1.4: projections, covariance vs. correlation, the Gram-matrix trick, PCA via SVD, choosing L, profile likelihood, and randomized exam practice.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">CS 473 &middot; Module 17 &middot; Murphy &sect;20.1.1, &sect;20.1.3, &sect;20.1.4 &middot; Principal components analysis</p>
+    <h1>PCA Interactive Learning Lab</h1>
+    <p class="lede">
+      Seven linked labs and a cheat sheet for the three assigned subsections of Murphy&rsquo;s PCA chapter. Every matrix,
+      eigenvalue and error on this page is computed in your browser from the data you see. The derivation in &sect;20.1.2
+      isn&rsquo;t assigned and is skipped; we use its result (<span class="tex" data-tex="\hat W = "></span> the top-<span class="tex" data-tex="L"></span>
+      eigenvectors of <span class="tex" data-tex="\hat\Sigma"></span>) and explain why it makes sense.
+    </p>
+    <p class="def">
+      <b>Notation (Murphy):</b> data matrix <span class="tex" data-tex="X\in\mathbb R^{N\times D}"></span> (one row per observation),
+      centered so each column has mean 0; covariance <span class="tex" data-tex="\hat\Sigma = \tfrac1N X^\top X"></span> with eigenpairs
+      <span class="tex" data-tex="(\lambda_j, u_j)"></span>, <span class="tex" data-tex="\lambda_1\ge\lambda_2\ge\cdots"></span>;
+      weights <span class="tex" data-tex="W = [u_1,\dots,u_L]\in\mathbb R^{D\times L}"></span>; scores <span class="tex" data-tex="Z = XW\in\mathbb R^{N\times L}"></span>;
+      reconstruction <span class="tex" data-tex="\hat X = ZW^\top"></span>.
+    </p>
+  </header>
+
+  <nav class="tabs" aria-label="Modules">
+    <a href="#m1" data-tab="m1"><span class="tn">1</span>Understanding PCA</a>
+    <a href="#m2" data-tab="m2"><span class="tn">2</span>Covariance vs. correlation</a>
+    <a href="#m3" data-tab="m3"><span class="tn">3</span>High-dimensional data</a>
+    <a href="#m4" data-tab="m4"><span class="tn">4</span>PCA via SVD</a>
+    <a href="#m5" data-tab="m5"><span class="tn">5</span>Choosing L</a>
+    <a href="#m6" data-tab="m6"><span class="tn">6</span>Profile likelihood</a>
+    <a href="#m7" data-tab="m7"><span class="tn">7</span>Exam practice</a>
+    <a href="#cheat" data-tab="cheat"><span class="tn">&Sigma;</span>Cheat sheet</a>
+  </nav>
+
+  <main>
+
+  <!-- ================================================================ MODULE 1 -->
+  <section class="module" id="m1" hidden>
+    <div class="mhead">
+      <p class="kicker">Module 1 &middot; &sect;20.1.1 Examples &middot; Fig. 20.1&ndash;20.3</p>
+      <h2>Projection: keep the variance, lose the least</h2>
+      <p class="lede-s">PCA picks a direction <span class="tex" data-tex="w"></span> (a unit vector) and replaces each centered point
+        <span class="tex" data-tex="x_n"></span> by its shadow <span class="tex" data-tex="\hat x_n = (w^\top x_n)\,w"></span> on that line.
+        Rotate <span class="tex" data-tex="w"></span> below and watch two numbers trade off exactly.</p>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>Data and projections</h3><span class="tag">illustrative: synthetic Gaussian data</span></div>
+        <svg id="m1plot" class="plot" viewBox="0 0 480 420" role="img" aria-label="Scatterplot with a projection line; drag the arrow tip or a point"></svg>
+        <p class="note">Drag the <b>arrow tip</b> to rotate <span class="tex" data-tex="w"></span>, or drag any <b>point</b>. Grey segments are the residuals <span class="tex" data-tex="x_n-\hat x_n"></span>; they always meet the line at a right angle.</p>
+        <div class="ctrls">
+          <label class="ctl"><span>angle of <span class="tex" data-tex="w"></span> <b class="num" id="m1thv"></b></span><input type="range" id="m1th" min="0" max="180" step="0.5" value="20"></label>
+          <label class="ctl"><span>correlation of the generated data <b class="num" id="m1rhov"></b></span><input type="range" id="m1rho" min="-0.95" max="0.95" step="0.05" value="0.7"></label>
+          <div class="btn-row">
+            <button type="button" class="btn btn-main" id="m1pc1">Snap to PC1</button>
+            <button type="button" class="btn" id="m1pc2">Snap to PC2</button>
+            <button type="button" class="btn" id="m1new">New sample</button>
+          </div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <div class="card-h"><h3>Live calculation</h3></div>
+          <div id="m1calc" class="calc"></div>
+          <div class="stats" id="m1stats"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Both quantities as <span class="tex" data-tex="w"></span> rotates</h3></div>
+          <svg id="m1curve" class="plot" viewBox="0 0 480 230" role="img" aria-label="Projected variance and reconstruction error against the angle of w"></svg>
+          <div class="legend"><span><i class="sw pc1"></i>projected variance <span class="tex" data-tex="w^\top\hat\Sigma w"></span></span><span><i class="sw pc2"></i>reconstruction error</span><span><i class="sw ink dash"></i>total variance <span class="tex" data-tex="\operatorname{tr}\hat\Sigma"></span></span></div>
+        </div>
+      </div>
+    </div>
+
+    <details class="why" open>
+      <summary>Why maximizing variance = minimizing reconstruction error</summary>
+      <div class="why-body">
+        <p>For a unit vector <span class="tex" data-tex="w"></span>, split each centered point into its piece along <span class="tex" data-tex="w"></span> and the leftover. The two pieces are orthogonal, so Pythagoras gives</p>
+        <div class="tex-block" data-tex="\lVert x_n\rVert^2 = \underbrace{(w^\top x_n)^2}_{\text{kept}} + \underbrace{\lVert x_n - (w^\top x_n)w\rVert^2}_{\text{lost}}"></div>
+        <p>Average over <span class="tex" data-tex="n"></span>. The left side is the total variance <span class="tex" data-tex="\operatorname{tr}\hat\Sigma"></span>, which doesn&rsquo;t depend on <span class="tex" data-tex="w"></span>. The first term on the right averages to <span class="tex" data-tex="\frac1N\sum_n (w^\top x_n)^2 = w^\top\hat\Sigma w"></span>, the variance of the projected data:</p>
+        <div class="tex-block" data-tex="\operatorname{tr}\hat\Sigma \;=\; \underbrace{w^\top\hat\Sigma w}_{\text{projected variance}} \;+\; \underbrace{\tfrac1N\textstyle\sum_n\lVert x_n-\hat x_n\rVert^2}_{\text{reconstruction error}}"></div>
+        <p>A fixed total split into two parts: making one larger makes the other smaller by exactly the same amount. The orange and blue curves above are mirror images about half the total. The maximum of <span class="tex" data-tex="w^\top\hat\Sigma w"></span> over unit vectors is the top eigenvalue <span class="tex" data-tex="\lambda_1"></span>, reached at the top eigenvector <span class="tex" data-tex="u_1"></span> (Rayleigh quotient), so PC1 is both the highest-variance direction and the best 1-D reconstruction. With <span class="tex" data-tex="L"></span> directions the same argument gives <span class="tex" data-tex="W=[u_1,\dots,u_L]"></span>, with leftover error <span class="tex" data-tex="\sum_{j>L}\lambda_j"></span> (Eq. 20.26, Module 5).</p>
+      </div>
+    </details>
+
+    <div class="card">
+      <div class="card-h"><h3>Image compression with <span class="tex" data-tex="L"></span> components</h3><span class="tag">illustrative: each image row is one observation</span></div>
+      <p class="note">Here one 64&times;64 grayscale image is treated as a data set of <span class="tex" data-tex="N=64"></span> rows, each a vector of <span class="tex" data-tex="D=64"></span> pixels. PCA finds the <span class="tex" data-tex="L"></span> &ldquo;row patterns&rdquo; that best rebuild every row. (Murphy&rsquo;s examples below go one step further and treat each whole image as one observation.)</p>
+      <div class="imgrow">
+        <figure><canvas id="m1orig" width="64" height="64" class="pix"></canvas><figcaption>original</figcaption></figure>
+        <figure><canvas id="m1rec" width="64" height="64" class="pix"></canvas><figcaption id="m1reccap">reconstruction</figcaption></figure>
+        <figure><canvas id="m1res" width="64" height="64" class="pix"></canvas><figcaption>residual (grey = 0)</figcaption></figure>
+        <div class="imgside">
+          <label class="ctl"><span>components kept <span class="tex" data-tex="L"></span> = <b class="num" id="m1Lv"></b></span><input type="range" id="m1L" min="0" max="64" value="8"></label>
+          <div class="stats" id="m1imgstats"></div>
+          <label class="btn file">Use my own image<input type="file" id="m1file" accept="image/*"></label>
+          <button type="button" class="btn btn-quiet" id="m1reset">Back to the test image</button>
+        </div>
+      </div>
+      <svg id="m1spec" class="plot slim" viewBox="0 0 720 150" role="img" aria-label="Fraction of variance explained by L components of the image"></svg>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>Images as observations: the MNIST and eigenfaces examples</h3><span class="tag">illustrative: synthetic &ldquo;3&rdquo;s drawn from your system fonts, not MNIST</span></div>
+      <div class="grid2 tight">
+        <div>
+          <p><b>MNIST (Fig. 20.2).</b> Murphy takes the images of one digit, the 3s, and flattens each 28&times;28 image into a vector in <span class="tex" data-tex="\mathbb R^{784}"></span>. PCA finds a mean image and directions of variation. The first few explain much of the variance: one is roughly slant, another stroke thickness. Projecting onto two components gives a 2-D map where nearby points look alike.</p>
+          <p><b>Eigenfaces (Fig. 20.3).</b> Same recipe on the Olivetti faces: 400 images of 64&times;64 pixels, so <span class="tex" data-tex="D = 4096 \gg N = 400"></span>. The principal directions, reshaped as images, look like ghostly faces: <b>eigenfaces</b>. A face can be stored as its <span class="tex" data-tex="L"></span> scores <span class="tex" data-tex="z = W^\top(x-\bar x)"></span> instead of 4096 pixels. Because <span class="tex" data-tex="D\gg N"></span>, this is exactly the setting for the Gram-matrix trick (Module 3).</p>
+          <p>The mini version on the right does the same with <span id="m1dN">N</span> synthetic 3s at 20&times;20 (<span class="tex" data-tex="D=400 > N"></span>). Its PCA is computed with the Gram matrix trick.</p>
+        </div>
+        <div>
+          <div class="eig-strip" id="m1eig"></div>
+          <div class="digit-row">
+            <svg id="m1map" class="plot" viewBox="0 0 300 260" role="img" aria-label="Each synthetic digit projected onto the first two principal components; hover a dot to preview it"></svg>
+            <div class="digit-side">
+              <figure><canvas id="m1dx" width="20" height="20" class="pix sm"></canvas><figcaption>selected digit</figcaption></figure>
+              <figure><canvas id="m1dxh" width="20" height="20" class="pix sm"></canvas><figcaption id="m1dxhcap">reconstruction</figcaption></figure>
+              <label class="ctl"><span><span class="tex" data-tex="L"></span> = <b class="num" id="m1dLv"></b></span><input type="range" id="m1dL" min="0" max="40" value="5"></label>
+              <p class="note">Hover or tap a dot on the map to pick a digit.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ MODULE 2 -->
+  <section class="module" id="m2" hidden>
+    <div class="mhead">
+      <p class="kicker">Module 2 &middot; &sect;20.1.3.1 Covariance matrix vs. correlation matrix</p>
+      <h2>Change the units, change the answer</h2>
+      <p class="lede-s">Height and weight of 120 people, generated with correlation 0.6 to resemble Murphy&rsquo;s height/weight example. Change the units of either feature and compare PCA on the covariance matrix with PCA on the correlation matrix.</p>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>The data as PCA sees it</h3><span class="tag">illustrative: synthetic height/weight</span></div>
+        <div class="seg" role="group" aria-label="Data view" id="m2view">
+          <button type="button" data-v="raw" aria-pressed="false">Raw</button>
+          <button type="button" data-v="centered" aria-pressed="true">Centered</button>
+          <button type="button" data-v="std" aria-pressed="false">Standardized</button>
+        </div>
+        <svg id="m2plot" class="plot" viewBox="0 0 480 400" role="img" aria-label="Height versus weight with principal component arrows"></svg>
+        <div class="legend"><span><i class="sw pc1"></i>PC1</span><span><i class="sw pc2"></i>PC2</span><span><i class="sw vio dash"></i>the other method&rsquo;s PC1, for comparison</span></div>
+        <label class="chk"><input type="checkbox" id="m2eq" checked> equal axis scales (true geometry, which PCA uses)</label>
+        <div class="ctrls">
+          <label class="ctl"><span>feature 1, height: multiply by <b class="num" id="m2s1v"></b></span><input type="range" id="m2s1" min="-3" max="3" step="any" value="0"></label>
+          <div class="btn-row sm"><span class="muted">units:</span><button type="button" class="btn" data-s1="-2">m</button><button type="button" class="btn" data-s1="0">cm</button><button type="button" class="btn" data-s1="1">mm</button><button type="button" class="btn" data-s1="-0.40483">inches</button></div>
+          <label class="ctl"><span>feature 2, weight: multiply by <b class="num" id="m2s2v"></b></span><input type="range" id="m2s2" min="-3" max="3" step="any" value="0"></label>
+          <div class="btn-row sm"><span class="muted">units:</span><button type="button" class="btn" data-s2="0">kg</button><button type="button" class="btn" data-s2="3">g</button><button type="button" class="btn" data-s2="0.34333">lb</button><button type="button" class="btn" data-s2="-3">tonnes</button></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <div class="card-h"><h3>Covariance <span class="tex" data-tex="\hat\Sigma"></span> &rarr; PCA on centered data</h3></div>
+          <div id="m2cov"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Correlation <span class="tex" data-tex="R"></span> &rarr; PCA on standardized data</h3></div>
+          <div id="m2cor"></div>
+        </div>
+        <div class="card"><div id="m2cmp"></div></div>
+      </div>
+    </div>
+    <details class="why" open>
+      <summary>Why PCA is sensitive to measurement units</summary>
+      <div class="why-body">
+        <p>Rescaling feature <span class="tex" data-tex="i"></span> by <span class="tex" data-tex="c"></span> (say cm &rarr; mm, <span class="tex" data-tex="c=10"></span>) is <span class="tex" data-tex="X \mapsto XC"></span> with <span class="tex" data-tex="C = \operatorname{diag}(1,\dots,c,\dots,1)"></span>, so</p>
+        <div class="tex-block" data-tex="\hat\Sigma \mapsto C\hat\Sigma C:\qquad \hat\Sigma_{ii}\mapsto c^2\hat\Sigma_{ii},\quad \hat\Sigma_{ij}\mapsto c\,\hat\Sigma_{ij}."></div>
+        <p><span class="tex" data-tex="C\hat\Sigma C"></span> is <b>not</b> similar to <span class="tex" data-tex="\hat\Sigma"></span> (<span class="tex" data-tex="C"></span> isn&rsquo;t orthogonal), so its eigenvectors are genuinely different, not just rescaled. PCA maximizes variance <i>in the numbers it is given</i>. Make one feature&rsquo;s numbers 1000&times; bigger and its variance is 10<sup>6</sup>&times; bigger, so PC1 snaps onto that axis. That reflects the choice of units, not anything about the data. Try &ldquo;mm&rdquo; for height above.</p>
+        <p><b>The fix (Murphy &sect;20.1.3.1):</b> standardize each column, <span class="tex" data-tex="\tilde x_{nd} = (x_{nd}-\bar x_d)/\sigma_d"></span>. The covariance of standardized data is the correlation matrix <span class="tex" data-tex="R = \Delta^{-1/2}\hat\Sigma \Delta^{-1/2}"></span>, <span class="tex" data-tex="\Delta=\operatorname{diag}(\hat\Sigma)"></span>, and <span class="tex" data-tex="R"></span> doesn&rsquo;t change under <span class="tex" data-tex="C"></span> because each <span class="tex" data-tex="c"></span> cancels between the numerator and <span class="tex" data-tex="\sigma_i"></span>. For two features <span class="tex" data-tex="R=\left[\begin{smallmatrix}1&\rho\\\rho&1\end{smallmatrix}\right]"></span>, whose eigenvectors are always <span class="tex" data-tex="\tfrac1{\sqrt2}(1,\pm1)"></span> with eigenvalues <span class="tex" data-tex="1\pm\rho"></span>, whatever the units.</p>
+        <p><b>When not to standardize:</b> when all features share meaningful units (pixel intensities, the same sensor). There, a low-variance feature really is less informative, and standardizing would inflate its noise up to variance 1.</p>
+        <p><b>Raw vs. centered:</b> the covariance already subtracts the mean, so the raw and centered views give the same <span class="tex" data-tex="\hat\Sigma"></span> and the same PCs; only the origin moves. PCA <i>without</i> centering (eigenvectors of <span class="tex" data-tex="\tfrac1N X^\top X"></span> on raw <span class="tex" data-tex="X"></span>) would point PC1 at the mean instead. The raw view draws that direction faintly from the origin so you can see it.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ================================================================ MODULE 3 -->
+  <section class="module" id="m3" hidden>
+    <div class="mhead">
+      <p class="kicker">Module 3 &middot; &sect;20.1.3.2 Dealing with high-dimensional data &middot; Eq. 20.22</p>
+      <h2>Eigendecompose the smaller matrix</h2>
+      <p class="lede-s">The principal directions are eigenvectors of the <span class="tex" data-tex="D\times D"></span> matrix <span class="tex" data-tex="X^\top X"></span>. When <span class="tex" data-tex="D>N"></span>, the <span class="tex" data-tex="N\times N"></span> Gram matrix <span class="tex" data-tex="XX^\top"></span> has the same nonzero eigenvalues and is much cheaper.</p>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>Shapes and sizes</h3></div>
+        <div class="ctrls">
+          <label class="ctl"><span>observations <span class="tex" data-tex="N"></span> = <b class="num" id="m3Nv"></b></span><input type="range" id="m3N" min="0" max="6" step="any" value="2.60206"></label>
+          <label class="ctl"><span>features <span class="tex" data-tex="D"></span> = <b class="num" id="m3Dv"></b></span><input type="range" id="m3D" min="0" max="6" step="any" value="3.61236"></label>
+          <div class="btn-row sm"><span class="muted">presets:</span>
+            <button type="button" class="btn" data-nd="400,4096">Olivetti faces</button>
+            <button type="button" class="btn" data-nd="6131,784">MNIST 3s</button>
+            <button type="button" class="btn" data-nd="100,20000">gene expression</button>
+            <button type="button" class="btn" data-nd="1000000,20">tall tabular</button></div>
+        </div>
+        <svg id="m3shapes" class="plot" viewBox="0 0 560 300" role="img" aria-label="Relative shapes of X, X transpose X and X X transpose"></svg>
+        <p class="note">Side lengths are drawn on a <b>log scale</b> so that a million and ten both fit; the entry counts below are exact.</p>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Cost comparison</h3></div>
+        <div id="m3table"></div>
+        <div id="m3rec" class="callout"></div>
+      </div>
+    </div>
+    <details class="why" open>
+      <summary>Why the Gram matrix works (Eq. 20.22)</summary>
+      <div class="why-body">
+        <p>Let <span class="tex" data-tex="U"></span> hold the unit eigenvectors of the Gram matrix: <span class="tex" data-tex="(XX^\top)U = U\Lambda"></span>. Multiply on the left by <span class="tex" data-tex="X^\top"></span> and regroup:</p>
+        <div class="tex-block" data-tex="(X^\top X)(X^\top U) = (X^\top U)\Lambda"></div>
+        <p>so each column <span class="tex" data-tex="X^\top u_j"></span> is an eigenvector of <span class="tex" data-tex="X^\top X"></span> with the <b>same</b> eigenvalue <span class="tex" data-tex="\lambda_j"></span>. It is not unit length:</p>
+        <div class="tex-block" data-tex="\lVert X^\top u_j\rVert^2 = u_j^\top (XX^\top) u_j = \lambda_j\, u_j^\top u_j = \lambda_j"></div>
+        <p>Dividing each column by <span class="tex" data-tex="\sqrt{\lambda_j}"></span> normalizes it, which is Murphy&rsquo;s Eq. 20.22:</p>
+        <div class="tex-block" data-tex="V = X^\top U\Lambda^{-\frac12}"></div>
+        <p>This only works for <span class="tex" data-tex="\lambda_j>0"></span>. The rank of <span class="tex" data-tex="X"></span> is at most <span class="tex" data-tex="\min(N,D)"></span>, and centering removes one more dimension (the rows sum to zero), so at most <span class="tex" data-tex="\min(N-1,D)"></span> eigenvalues are nonzero. The <span class="tex" data-tex="D-N"></span> extra eigenvectors of the big matrix all have eigenvalue 0 and carry no variance, so losing them costs nothing. Also, <span class="tex" data-tex="XX^\top"></span> has entries <span class="tex" data-tex="x_n^\top x_m"></span>: inner products between observations. That is why this view leads to kernel PCA (&sect;20.4.6).</p>
+      </div>
+    </details>
+    <div class="card">
+      <div class="card-h"><h3>Step by step: a numerical example you can follow by hand</h3>
+        <div class="btn-row"><button type="button" class="btn" id="m3gen">New random X</button><button type="button" class="btn" id="m3next">Reveal next step</button><button type="button" class="btn btn-quiet" id="m3all">Show all steps</button></div></div>
+      <p class="note">Edit any entry of <span class="tex" data-tex="X"></span> (<span class="tex" data-tex="N=4"></span> observations, <span class="tex" data-tex="D=6"></span> features). The steps update live.</p>
+      <div id="m3edit" class="editor"></div>
+      <ol class="steps" id="m3steps"></ol>
+    </div>
+  </section>
+
+  <!-- ================================================================ MODULE 4 -->
+  <section class="module" id="m4" hidden>
+    <div class="mhead">
+      <p class="kicker">Module 4 &middot; &sect;20.1.3.3 Computing PCA using SVD</p>
+      <h2>PCA is the truncated SVD of the centered data</h2>
+      <p class="lede-s">Factor the centered matrix as <span class="tex" data-tex="X = USV^\top"></span>. The columns of <span class="tex" data-tex="V"></span> are the principal directions and <span class="tex" data-tex="s_j^2/N"></span> are the covariance eigenvalues; you never have to form <span class="tex" data-tex="X^\top X"></span>.</p>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>Your data matrix <span class="tex" data-tex="X"></span></h3>
+        <div class="btn-row sm">
+          <label class="mini">N <select id="m4N"><option>3</option><option>4</option><option selected>5</option><option>6</option><option>7</option><option>8</option></select></label>
+          <label class="mini">D <select id="m4D"><option>2</option><option selected>3</option><option>4</option><option>5</option></select></label>
+          <button type="button" class="btn" id="m4gen">Random integers</button>
+          <button type="button" class="btn" id="m4corr">Random, nearly rank-1</button>
+          <button type="button" class="btn btn-quiet" id="m4ex">Default example</button></div></div>
+      <div class="grid3">
+        <div><div id="m4edit" class="editor"></div><p class="note">Type into any cell.</p></div>
+        <div id="m4mean"></div>
+        <div id="m4xc"></div>
+      </div>
+    </div>
+    <div class="card sticky-ctl">
+      <label class="ctl"><span>singular values kept <span class="tex" data-tex="L"></span> = <b class="num" id="m4Lv"></b> <span class="muted" id="m4Lnote"></span></span><input type="range" id="m4L" min="1" max="3" value="1"></label>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>The SVD <span class="tex" data-tex="X_c = USV^\top"></span> (economy form, <span class="tex" data-tex="k=\min(N,D)"></span>)</h3><span class="tag"><i class="sw pc1"></i> kept &nbsp; <i class="sw faded"></i> discarded</span></div>
+      <div class="matrow" id="m4svd"></div>
+      <div class="grid3 explain3">
+        <div><b><span class="tex" data-tex="U"></span> (<span class="tex" data-tex="N\times k"></span>), left singular vectors.</b> Orthonormal columns in observation space <span class="tex" data-tex="\mathbb R^N"></span>. Column <span class="tex" data-tex="j"></span> lists how much each observation loads on pattern <span class="tex" data-tex="j"></span>, scaled to unit length. Eigenvectors of the Gram matrix <span class="tex" data-tex="XX^\top"></span>.</div>
+        <div><b><span class="tex" data-tex="S"></span> (<span class="tex" data-tex="k\times k"></span>), singular values.</b> <span class="tex" data-tex="s_1\ge s_2\ge\dots\ge0"></span>: how much the data stretches along each direction. Variance goes with <span class="tex" data-tex="s_j^2"></span>: <span class="tex" data-tex="\lambda_j = s_j^2/N"></span>.</div>
+        <div><b><span class="tex" data-tex="V"></span> (<span class="tex" data-tex="D\times k"></span>), right singular vectors.</b> Orthonormal columns in feature space <span class="tex" data-tex="\mathbb R^D"></span>: the <b>principal directions</b>. Eigenvectors of <span class="tex" data-tex="X^\top X"></span> (and of <span class="tex" data-tex="\hat\Sigma"></span>). The highlighted columns become <span class="tex" data-tex="W"></span>.</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>From the SVD to PCA</h3></div>
+      <div class="matrow" id="m4pca"></div>
+      <div id="m4check" class="calc"></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>Singular values vs. covariance eigenvalues</h3></div>
+        <div id="m4eig"></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Why <span class="tex" data-tex="\lambda_j = s_j^2/N"></span> and <span class="tex" data-tex="W=V_L"></span></h3></div>
+        <div class="why-body flat">
+          <div class="tex-block" data-tex="X^\top X = (USV^\top)^\top(USV^\top) = VS\,\underbrace{U^\top U}_{I}\,SV^\top = VS^2V^\top"></div>
+          <p>That is an eigendecomposition: <span class="tex" data-tex="\hat\Sigma=\tfrac1N X^\top X = V\big(\tfrac1N S^2\big)V^\top"></span>, so the eigenvectors are the columns of <span class="tex" data-tex="V"></span> and the eigenvalues are <span class="tex" data-tex="s_j^2/N"></span>. Hence <span class="tex" data-tex="W = V_L"></span>, and the scores are</p>
+          <div class="tex-block" data-tex="Z = XW = USV^\top V_L = U_L S_L"></div>
+          <p>because <span class="tex" data-tex="V^\top V_L"></span> picks out the first <span class="tex" data-tex="L"></span> columns of the identity.</p>
+          <p><b>Why truncated SVD = PCA.</b> The reconstruction <span class="tex" data-tex="\hat X = ZW^\top = U_LS_LV_L^\top"></span> is the SVD with all but the top <span class="tex" data-tex="L"></span> singular values set to zero. The Eckart&ndash;Young theorem says this is the best rank-<span class="tex" data-tex="L"></span> approximation of <span class="tex" data-tex="X"></span> in Frobenius norm, with error <span class="tex" data-tex="\lVert X-\hat X\rVert_F^2 = \sum_{j>L}s_j^2"></span>. Divide by <span class="tex" data-tex="N"></span> and that is <span class="tex" data-tex="\sum_{j>L}\lambda_j"></span>, the PCA reconstruction error (Eq. 20.26). The best rank-<span class="tex" data-tex="L"></span> matrix and the best <span class="tex" data-tex="L"></span>-dimensional linear projection are the same object.</p>
+          <p><b>Why use SVD in practice:</b> forming <span class="tex" data-tex="X^\top X"></span> squares the condition number (small singular values lose precision), while SVD works on <span class="tex" data-tex="X"></span> directly. Randomized/truncated SVD gets the top <span class="tex" data-tex="L"></span> components without the full factorization. (This page builds the small SVD from <span class="tex" data-tex="X^\top X"></span> for transparency, which is fine at this size.)</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ MODULE 5 -->
+  <section class="module" id="m5" hidden>
+    <div class="mhead">
+      <p class="kicker">Module 5 &middot; &sect;20.1.4 Choosing the number of latent dimensions &middot; Eqs. 20.26&ndash;20.27</p>
+      <h2>How many components?</h2>
+      <p class="lede-s">Everything here is a function of the sorted eigenvalues. Edit them by typing, or drag the bars up and down.</p>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>Eigenvalues <span class="tex" data-tex="\lambda_1\ge\dots\ge\lambda_{L_{max}}"></span></h3>
+        <div class="btn-row sm"><span class="muted">presets:</span>
+          <button type="button" class="btn" data-p5="decay">smooth decay</button>
+          <button type="button" class="btn" data-p5="elbow">clear elbow</button>
+          <button type="button" class="btn" data-p5="flat">nearly flat</button>
+          <button type="button" class="btn" data-p5="one">one dominant</button></div></div>
+      <div id="m5chips" class="chips"></div>
+      <p class="note">Values are kept sorted in decreasing order (eigenvalues of <span class="tex" data-tex="\hat\Sigma"></span> are always listed that way). Use + / &times; to add or remove one.</p>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>Scree plot</h3><span class="tag"><i class="sw pc1"></i> retained &nbsp;<i class="sw pc2"></i> discarded</span></div>
+        <svg id="m5scree" class="plot" viewBox="0 0 520 300" role="img" aria-label="Scree plot; drag a bar to change its eigenvalue"></svg>
+        <label class="ctl"><span>components retained <span class="tex" data-tex="L"></span> = <b class="num" id="m5Lv"></b></span><input type="range" id="m5L" min="1" max="10" value="3"></label>
+        <div id="m5calc" class="calc"></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Fraction of variance explained <span class="tex" data-tex="F(L)"></span></h3></div>
+        <div class="btn-row sm" id="m5targets"><span class="muted">target:</span>
+          <button type="button" class="btn" data-t="0.9" aria-pressed="false">90%</button>
+          <button type="button" class="btn" data-t="0.95" aria-pressed="true">95%</button>
+          <button type="button" class="btn" data-t="0.99" aria-pressed="false">99%</button>
+          <label class="mini">custom <input type="number" id="m5tc" min="1" max="100" step="0.5" value="95" style="width:5.5em">%</label></div>
+        <svg id="m5cum" class="plot" viewBox="0 0 520 260" role="img" aria-label="Cumulative fraction of variance explained, with the target line"></svg>
+        <div id="m5target" class="callout"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>Training vs. test reconstruction error (&sect;20.1.4.1)</h3><span class="tag">illustrative simulation: Gaussian data whose true spectrum is your eigenvalues</span></div>
+      <div class="grid2 tight">
+        <div>
+          <svg id="m5tt" class="plot" viewBox="0 0 520 280" role="img" aria-label="Training and test reconstruction error versus number of components"></svg>
+          <div class="legend"><span><i class="sw pc1"></i>training error</span><span><i class="sw pc2"></i>test error</span></div>
+          <div class="ctrls">
+            <label class="ctl"><span>training size <span class="tex" data-tex="N_{train}"></span> = <b class="num" id="m5Nv"></b></span><input type="range" id="m5N" min="5" max="400" value="30"></label>
+            <button type="button" class="btn" id="m5re">Draw new samples</button>
+          </div>
+        </div>
+        <div class="why-body flat">
+          <p>We draw <span class="tex" data-tex="N_{train}"></span> training points and 1000 test points from <span class="tex" data-tex="\mathcal N(0, R\,\operatorname{diag}(\lambda)R^\top)"></span> with a random rotation <span class="tex" data-tex="R"></span>. We fit PCA on the training set only, then measure <span class="tex" data-tex="\frac1N\sum\lVert x-\hat x\rVert^2"></span> on both sets for every <span class="tex" data-tex="L"></span>.</p>
+          <p><b>The training curve</b> is exactly <span class="tex" data-tex="\sum_{j>L}\hat\lambda_j"></span> (Eq. 20.26, using the <i>sample</i> eigenvalues). <b>Test error usually sits above it</b> because the training directions are estimates; with a small <span class="tex" data-tex="N_{train}"></span> the gap is larger.</p>
+          <p><b>Why there&rsquo;s no U shape.</b> In most models, test error eventually rises with complexity (overfitting). Here it can&rsquo;t: the reconstruction of a test point is its orthogonal projection onto <span class="tex" data-tex="\operatorname{span}(w_1,\dots,w_L)"></span>, and these spans are <b>nested</b>. Adding a direction can only bring the projection closer to the point, for <i>any</i> point. At <span class="tex" data-tex="L=D"></span> the span is all of <span class="tex" data-tex="\mathbb R^D"></span> and the error is exactly 0. PCA reconstruction isn&rsquo;t a likelihood: it never pays for using more parameters. So &ldquo;minimize test reconstruction error&rdquo; always says <span class="tex" data-tex="L=D"></span>, and Murphy turns to scree plots, explained-variance thresholds and profile likelihood (Module 6). A probabilistic model (PPCA, &sect;20.2) does show a U-shaped test log-likelihood.</p>
+        </div>
+      </div>
+    </div>
+    <details class="why">
+      <summary>Where Eqs. 20.26 and 20.27 come from</summary>
+      <div class="why-body">
+        <p>With <span class="tex" data-tex="W=[u_1,\dots,u_L]"></span>, the residual of <span class="tex" data-tex="x_n"></span> is its component in <span class="tex" data-tex="\operatorname{span}(u_{L+1},\dots,u_D)"></span>:</p>
+        <div class="tex-block" data-tex="\mathcal L_L = \frac1N\sum_n\lVert x_n-\hat x_n\rVert^2 = \frac1N\sum_n\sum_{j>L}(u_j^\top x_n)^2 = \sum_{j>L} u_j^\top\hat\Sigma u_j = \sum_{j=L+1}^{D}\lambda_j \qquad (20.26)"></div>
+        <div class="tex-block" data-tex="F(L) = \frac{\sum_{j=1}^{L}\lambda_j}{\sum_{j'=1}^{L_{max}}\lambda_{j'}} \qquad (20.27)"></div>
+        <p>The total <span class="tex" data-tex="\sum_j\lambda_j=\operatorname{tr}\hat\Sigma"></span> is the total variance, so <span class="tex" data-tex="F(L)"></span> and <span class="tex" data-tex="\mathcal L_L/\operatorname{tr}\hat\Sigma"></span> always add to 1. A <b>scree plot</b> graphs <span class="tex" data-tex="\lambda_j"></span> against <span class="tex" data-tex="j"></span> (equivalently, the drop in error from each added component). An &ldquo;elbow&rdquo; where the curve flattens suggests the remaining directions are noise.</p>
+      </div>
+    </details>
+  </section>
+
+  <!-- ================================================================ MODULE 6 -->
+  <section class="module" id="m6" hidden>
+    <div class="mhead">
+      <p class="kicker">Module 6 &middot; &sect;20.1.4.3 Profile likelihood &middot; Eqs. 20.28&ndash;20.31</p>
+      <h2>Find the elbow with a likelihood</h2>
+      <p class="lede-s">Zhu &amp; Ghodsi (2006): treat the eigenvalues before a change point as one Gaussian cluster and those after as another, with a shared variance. Then ask which change point makes the eigenvalues most likely.</p>
+    </div>
+    <div class="card">
+      <div class="card-h"><h3>Eigenvalues</h3>
+        <div class="btn-row sm"><span class="muted">presets:</span>
+          <button type="button" class="btn" data-p6="elbow">clear gap</button>
+          <button type="button" class="btn" data-p6="decay">smooth decay</button>
+          <button type="button" class="btn" data-p6="two">two gaps</button>
+          <button type="button" class="btn" id="m6copy">Copy from Module 5</button></div></div>
+      <div id="m6chips" class="chips"></div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>Scree plot split at <span class="tex" data-tex="L"></span></h3><span class="tag"><i class="sw pc1"></i> group 1 &nbsp;<i class="sw pc2"></i> group 2</span></div>
+        <svg id="m6scree" class="plot" viewBox="0 0 520 300" role="img" aria-label="Scree plot split into two groups with their means and shared spread"></svg>
+        <label class="ctl"><span>change point <span class="tex" data-tex="L"></span> = <b class="num" id="m6Lv"></b> <span class="muted">(valid: 1 &hellip; L<sub>max</sub> &minus; 1)</span></span><input type="range" id="m6L" min="1" max="9" value="2"></label>
+        <p class="note">Bands show <span class="tex" data-tex="\mu_k\pm\sigma"></span> with the shared <span class="tex" data-tex="\sigma"></span>.</p>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Profile log likelihood <span class="tex" data-tex="\ell(L)"></span></h3></div>
+        <svg id="m6ll" class="plot" viewBox="0 0 520 260" role="img" aria-label="Profile log likelihood for every valid split; click a point to select it"></svg>
+        <div id="m6best" class="callout"></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>Equations 20.28&ndash;20.31 with your numbers</h3></div>
+        <div id="m6calc" class="calc"></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Every valid split</h3></div>
+        <div id="m6table" class="tablewrap"></div>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="card">
+        <div class="card-h"><h3>Three ways to choose <span class="tex" data-tex="L"></span></h3></div>
+        <div id="m6cmp"></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><h3>Reading the method step by step</h3></div>
+        <div class="why-body flat">
+          <ol class="plain">
+            <li><b>Model (Eq. 20.28).</b> For a candidate <span class="tex" data-tex="L"></span>, pretend <span class="tex" data-tex="\lambda_1..\lambda_L \sim\mathcal N(\mu_1,\sigma^2)"></span> (signal) and <span class="tex" data-tex="\lambda_{L+1}..\lambda_{L_{max}}\sim\mathcal N(\mu_2,\sigma^2)"></span> (noise), independently. The log likelihood is a sum of Gaussian log densities.</li>
+            <li><b>Means (Eqs. 20.29&ndash;20.30).</b> The MLE of each mean is the average of its own group.</li>
+            <li><b>Shared variance (Eq. 20.31).</b> Pool the squared deviations of both groups from their own means and divide by <span class="tex" data-tex="L_{max}"></span>. One shared <span class="tex" data-tex="\sigma^2"></span> is essential: with separate variances, a one-element group would give <span class="tex" data-tex="\sigma^2=0"></span> and infinite likelihood.</li>
+            <li><b>Profile.</b> Plug these maximizers back in. What remains depends only on <span class="tex" data-tex="L"></span>; that function is the <i>profile</i> likelihood. Here it simplifies to <span class="tex" data-tex="\ell(L) = -\frac{L_{max}}2\log\big(2\pi\sigma^2(L)\big) - \frac{L_{max}}{2}"></span>, so <b>the best split is the one with the smallest pooled within-group spread</b>: a two-cluster problem on a line.</li>
+            <li><b>Choose</b> <span class="tex" data-tex="L^* = \arg\max_L \ell(L)"></span> over <span class="tex" data-tex="1\le L\le L_{max}-1"></span>.</li>
+          </ol>
+          <p class="note">Equation numbers follow the 2022 MIT Press edition of <i>PML: An Introduction</i>; check them against your printing.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ MODULE 7 -->
+  <section class="module" id="m7" hidden>
+    <div class="mhead">
+      <p class="kicker">Module 7 &middot; Exam practice</p>
+      <h2>Randomized questions with worked solutions</h2>
+      <p class="lede-s">Answer first, then check. Hints are optional, and every question has a full step-by-step solution. Your score and weak topics are saved in this browser only.</p>
+    </div>
+    <div class="grid-pr">
+      <div class="col">
+        <div class="card" id="m7card">
+          <div class="card-h"><h3 id="m7topic">Question</h3><span class="tag" id="m7count"></span></div>
+          <div id="m7prompt" class="qprompt"></div>
+          <div id="m7answer"></div>
+          <div class="btn-row">
+            <button type="button" class="btn btn-main" id="m7check">Check answer</button>
+            <button type="button" class="btn" id="m7hint">Hint</button>
+            <button type="button" class="btn" id="m7reveal">Show solution</button>
+            <button type="button" class="btn" id="m7next">Next question &rarr;</button>
+          </div>
+          <div id="m7hinttext" class="hint" hidden></div>
+          <div id="m7fb" class="feedback" aria-live="polite"></div>
+          <div id="m7sol" class="solution" hidden></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <div class="card-h"><h3>Score</h3><button type="button" class="btn btn-quiet" id="m7reset">Reset record</button></div>
+          <div id="m7score" class="scorebox"></div>
+          <div id="m7weak"></div>
+        </div>
+        <div class="card">
+          <div class="card-h"><h3>Topics</h3></div>
+          <label class="chk"><input type="checkbox" id="m7focus"> focus on my weak topics</label>
+          <div id="m7topics" class="topiclist"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================ CHEAT SHEET -->
+  <section class="module" id="cheat" hidden>
+    <div class="mhead">
+      <p class="kicker">Exam cheat sheet &middot; &sect;20.1.1, &sect;20.1.3, &sect;20.1.4</p>
+      <h2>The formulas, and why each one is true</h2>
+    </div>
+    <div class="cheat">
+      <div class="card">
+        <h3>Setup</h3>
+        <div class="tex-block" data-tex="X\in\mathbb R^{N\times D}\ \text{centered},\quad \hat\Sigma = \tfrac1N X^\top X = \textstyle\sum_j \lambda_j u_ju_j^\top"></div>
+        <div class="tex-block" data-tex="W = [u_1..u_L]\ (D\times L),\quad Z = XW\ (N\times L)"></div>
+        <div class="tex-block" data-tex="\hat X = ZW^\top\ (N\times D)"></div>
+        <p>For a new point: <span class="tex" data-tex="z = W^\top(x-\bar x)"></span>, <span class="tex" data-tex="\hat x = \bar x + Wz"></span>. <span class="tex" data-tex="W^\top W = I_L"></span>, but <span class="tex" data-tex="WW^\top"></span> is a projection, not <span class="tex" data-tex="I_D"></span>.</p>
+      </div>
+      <div class="card">
+        <h3>Variance &harr; error (&sect;20.1.1)</h3>
+        <div class="tex-block" data-tex="\operatorname{tr}\hat\Sigma = \underbrace{\textstyle\sum_{j\le L}\lambda_j}_{\text{projected var.}} + \underbrace{\textstyle\sum_{j>L}\lambda_j}_{\text{recon. error}}"></div>
+        <p>Pythagoras on each point, averaged. Total fixed &rArr; max variance = min error. 1-D case: <span class="tex" data-tex="\max_{\lVert w\rVert=1} w^\top\hat\Sigma w = \lambda_1"></span> at <span class="tex" data-tex="w=u_1"></span>.</p>
+      </div>
+      <div class="card">
+        <h3>Covariance vs. correlation (&sect;20.1.3.1)</h3>
+        <div class="tex-block" data-tex="R = \Delta^{-\frac12}\hat\Sigma\Delta^{-\frac12},\ \ \Delta = \operatorname{diag}\hat\Sigma"></div>
+        <div class="tex-block" data-tex="R_{ij} = \frac{\hat\Sigma_{ij}}{\sigma_i\sigma_j},\quad \operatorname{tr}R = D"></div>
+        <p>Rescale feature <span class="tex" data-tex="i"></span> by <span class="tex" data-tex="c"></span>: <span class="tex" data-tex="\hat\Sigma_{ii}\to c^2\hat\Sigma_{ii}"></span>, PCs change; <span class="tex" data-tex="R"></span> unchanged. Mixed units &rArr; standardize. 2&times;2: <span class="tex" data-tex="\lambda = 1\pm\rho"></span>, <span class="tex" data-tex="u = \tfrac1{\sqrt2}(1,\pm1)"></span>.</p>
+        <p>2&times;2 symmetric <span class="tex" data-tex="\left[\begin{smallmatrix}a&b\\b&d\end{smallmatrix}\right]"></span>: <span class="tex" data-tex="\lambda=\tfrac{a+d}2\pm\sqrt{\big(\tfrac{a-d}2\big)^2+b^2}"></span>, <span class="tex" data-tex="u\propto(b,\ \lambda-a)"></span>.</p>
+      </div>
+      <div class="card">
+        <h3>Gram matrix trick (&sect;20.1.3.2)</h3>
+        <div class="tex-block" data-tex="(XX^\top)U = U\Lambda\ \Rightarrow\ (X^\top X)(X^\top U) = (X^\top U)\Lambda"></div>
+        <div class="tex-block" data-tex="\lVert X^\top u_j\rVert^2=\lambda_j\ \Rightarrow\ V = X^\top U\Lambda^{-1/2}\quad(20.22)"></div>
+        <p>Sizes: <span class="tex" data-tex="X^\top X"></span> is <span class="tex" data-tex="D\times D"></span> (cost <span class="tex" data-tex="O(D^3)"></span>), <span class="tex" data-tex="XX^\top"></span> is <span class="tex" data-tex="N\times N"></span> (<span class="tex" data-tex="O(N^3)"></span>). Use Gram when <span class="tex" data-tex="D>N"></span>. Nonzero eigenvalues: at most <span class="tex" data-tex="\min(N-1,D)"></span> after centering.</p>
+      </div>
+      <div class="card">
+        <h3>SVD (&sect;20.1.3.3)</h3>
+        <div class="tex-block" data-tex="X = USV^\top,\quad X^\top X = VS^2V^\top,\quad \lambda_j = \frac{s_j^2}{N}"></div>
+        <div class="tex-block" data-tex="W = V_L,\quad Z = U_LS_L,\quad \hat X = U_LS_LV_L^\top"></div>
+        <p>Principal directions = <b>columns of <span class="tex" data-tex="V"></span></b> (= rows of <span class="tex" data-tex="V^\top"></span>). Eckart&ndash;Young: <span class="tex" data-tex="\lVert X-\hat X\rVert_F^2=\sum_{j>L}s_j^2"></span>. Explained fraction uses <span class="tex" data-tex="s_j^2"></span>, not <span class="tex" data-tex="s_j"></span>.</p>
+      </div>
+      <div class="card">
+        <h3>Choosing L (&sect;20.1.4)</h3>
+        <div class="tex-block" data-tex="\mathcal L_L = \sum_{j=L+1}^{D}\lambda_j\quad(20.26)"></div>
+        <div class="tex-block" data-tex="F(L)=\sum_{j=1}^{L}\lambda_j\Big/\sum_{j'=1}^{L_{max}}\lambda_{j'}\quad(20.27)"></div>
+        <p>Min <span class="tex" data-tex="L"></span> for target <span class="tex" data-tex="\tau"></span>: smallest <span class="tex" data-tex="L"></span> with <span class="tex" data-tex="F(L)\ge\tau"></span>. Train and test reconstruction error both fall monotonically to 0 at <span class="tex" data-tex="L=D"></span> (nested subspaces): no U shape, so error can&rsquo;t choose <span class="tex" data-tex="L"></span>.</p>
+      </div>
+      <div class="card">
+        <h3>Profile likelihood (&sect;20.1.4.3)</h3>
+        <div class="tex-block" data-tex="\begin{aligned}\ell(L)=&\textstyle\sum_{k\le L}\log\mathcal N(\lambda_k|\mu_1,\sigma^2)\\&+\textstyle\sum_{k>L}\log\mathcal N(\lambda_k|\mu_2,\sigma^2)\quad(20.28)\end{aligned}"></div>
+        <div class="tex-block" data-tex="\mu_1=\frac{\sum_{k\le L}\lambda_k}{L},\qquad \mu_2=\frac{\sum_{k>L}\lambda_k}{L_{max}-L}"></div>
+        <div class="tex-block" data-tex="\sigma^2=\frac{\sum_{k\le L}(\lambda_k-\mu_1)^2+\sum_{k>L}(\lambda_k-\mu_2)^2}{L_{max}}"></div>
+        <p>(20.29&ndash;20.31). Plugged in: <span class="tex" data-tex="\ell(L)=-\tfrac{L_{max}}2[\log(2\pi\sigma^2)+1]"></span> &rArr; minimize pooled SS. <span class="tex" data-tex="L\in\{1,\dots,L_{max}-1\}"></span>.</p>
+      </div>
+      <div class="card">
+        <h3>Common traps</h3>
+        <ul class="plain">
+          <li>Forgetting to center (PC1 then points at the mean).</li>
+          <li>Using <span class="tex" data-tex="U"></span> instead of <span class="tex" data-tex="V"></span> for directions; reading rows of <span class="tex" data-tex="V"></span> instead of columns.</li>
+          <li>Explained variance from <span class="tex" data-tex="s_j"></span> instead of <span class="tex" data-tex="s_j^2"></span>.</li>
+          <li>Forgetting the <span class="tex" data-tex="1/N"></span>: eigenvalues of <span class="tex" data-tex="X^\top X"></span> are <span class="tex" data-tex="N\lambda_j"></span>.</li>
+          <li>Eigenvector signs are arbitrary: <span class="tex" data-tex="u"></span> and <span class="tex" data-tex="-u"></span> are both right.</li>
+          <li>Profile-likelihood <span class="tex" data-tex="\sigma^2"></span> divides by <span class="tex" data-tex="L_{max}"></span>, not by each group size.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  </main>
+
+  <footer class="foot">
+    <p>Murphy, <i>Probabilistic Machine Learning: An Introduction</i> (MIT Press, 2022), &sect;20.1.1, &sect;20.1.3, &sect;20.1.4;
+      Zhu &amp; Ghodsi (2006), &ldquo;Automatic dimensionality selection from the scree plot via the use of profile likelihood.&rdquo;
+      All data sets on this page are synthetic and labeled as such. Every number is computed in your browser.</p>
+  </footer>
+</div>
+<div id="tip" class="tip" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="model.js"></script>
+<script src="practice.js"></script>
+<script src="ui.js"></script>
+<script src="m1.js"></script>
+<script src="m2.js"></script>
+<script src="m3.js"></script>
+<script src="m4.js"></script>
+<script src="m5.js"></script>
+<script src="m6.js"></script>
+<script src="m7.js"></script>
+</body>
+</html>
